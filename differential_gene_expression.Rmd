@@ -1,0 +1,855 @@
+---
+title: "clustering"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = 'C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp')
+```
+
+
+### Differential gene expression analysis
+
+Load in the data:
+```{r}
+load('clustered-all.rda')
+```
+
+Looking at various contingency tables for different variables. 
+```{r}
+table(All@meta.data$orig.ident)
+table(All@meta.data$orig.ident, All@meta.data$Sex)
+table(All@meta.data$orig.ident, All@meta.data$Treat)
+table(All@meta.data$orig.ident, All@meta.data$res.0.4)
+```
+
+
+```{r}
+library(edgeR)
+library(Seurat)
+library(EnhancedVolcano)
+```
+
+
+Renaming data for easier handling, separating the counts matrix and the cell attribute matrix and the tSNE coordinates for future use.
+```{r}
+counts_mat = All@assays$RNA@data
+rownames(counts_mat) = All@assays$RNA@data@Dimnames[[1]]
+colnames(counts_mat) = All@assays$RNA@data@Dimnames[[2]]
+cells_mat = All@meta.data 
+counts_mat = counts_mat[,rownames(cells_mat)]
+```
+
+
+
+This is edgeR differential expression for stratifying between cluster assignments. Model matrix designed so that the average effect of the 4 Pb mice minus the average effect of the 4 Ctrl mice would result in a contrast of only the 1*Tx term.
+```{r}
+calc_fit <- function(clusterID) {
+	print(sprintf("Analyzing cluster %s",clusterID))
+	#counts_clu0 = counts_mat[,cluster_probs[,sprintf("res.0.4%s",clusterID)]>0.95]
+	counts_clu0 = counts_mat[,colnames(counts_mat) %in% rownames(cells_mat)[cells_mat$seurat_clusters %in% clusterID]]
+	cells_clu0 = cells_mat[colnames(counts_clu0),]
+	#Ctrls: 109d 113c 118d 119g
+	#Pbs  : 103c 107d 112c 116d
+	cells_clu0$Tx = 0.5*((cells_clu0$Treat == "Pb") - (cells_clu0$Treat == "Ctrl"))
+	cells_clu0$TxCtl.M1 = - (cells_clu0$orig.ident == "Ctl.M1") + (cells_clu0$orig.ident == "Ctl.F2")
+	cells_clu0$TxCtl.F1 = - (cells_clu0$orig.ident == "Ctl.F1") + (cells_clu0$orig.ident == "Ctl.F2")
+	cells_clu0$TxCtl.M2 = - (cells_clu0$orig.ident == "Ctl.M2") + (cells_clu0$orig.ident == "Ctl.F2")
+	cells_clu0$TxPb.F1 =  (cells_clu0$orig.ident == "Pb.F1") - (cells_clu0$orig.ident == "Pb.M2")
+	cells_clu0$TxPb.M1 =  (cells_clu0$orig.ident == "Pb.M1") - (cells_clu0$orig.ident == "Pb.M2")
+	cells_clu0$TxPb.F2 =  (cells_clu0$orig.ident == "Pb.F2") - (cells_clu0$orig.ident == "Pb.M2")
+	cells_clu0$det = colSums(as.matrix(counts_clu0 > 0))/ncol(counts_clu0)
+	
+	design = model.matrix(~ Tx+TxCtl.M1+TxCtl.F1+TxCtl.M2+TxPb.F1+TxPb.M1+TxPb.F2+det, data = cells_clu0)
+	y = DGEList(counts_clu0, group = factor(cells_clu0$Treat))
+	y = calcNormFactors(y)
+	print("Calcuating Dispersion")
+	y = estimateDisp(y, design)
+	print("Fitting model")
+	fit = glmQLFit(y, design)
+	print("Calculating QLFTest")
+	qlf = glmQLFTest(fit, contrast=c(0,1,0,0,0,0,0,0,0))
+	return(qlf)
+}
+```
+
+This is edgeR DE for all clusters
+```{r}
+calc_fit_all <- function() {
+	print(sprintf("Analyzing cluster %s","ALL"))
+	#counts_clu0 = counts_mat[,cluster_probs[,sprintf("res.0.4%s",clusterID)]>0.95]
+	counts_clu0 = counts_mat
+	cells_clu0 = cells_mat
+	
+	#Ctrls: 109d 113c 118d 119g
+	#Pbs  : 103c 107d 112c 116d
+	cells_clu0$Tx = 0.5*((cells_clu0$Treat == "Pb") - (cells_clu0$Treat == "Ctrl"))
+	cells_clu0$TxCtl.M1 = - (cells_clu0$orig.ident == "Ctl.M1") + (cells_clu0$orig.ident == "Ctl.F2")
+	cells_clu0$TxCtl.F1 = - (cells_clu0$orig.ident == "Ctl.F1") + (cells_clu0$orig.ident == "Ctl.F2")
+	cells_clu0$TxCtl.M2 = - (cells_clu0$orig.ident == "Ctl.M2") + (cells_clu0$orig.ident == "Ctl.F2")
+	cells_clu0$TxPb.F1 =  (cells_clu0$orig.ident == "Pb.F1") - (cells_clu0$orig.ident == "Pb.M2")
+	cells_clu0$TxPb.M1 =  (cells_clu0$orig.ident == "Pb.M1") - (cells_clu0$orig.ident == "Pb.M2")
+	cells_clu0$TxPb.F2 =  (cells_clu0$orig.ident == "Pb.F2") - (cells_clu0$orig.ident == "Pb.M2")
+	cells_clu0$det = colSums(as.matrix(counts_clu0 > 0))/ncol(counts_clu0)
+	
+	design = model.matrix(~ Tx+TxCtl.M1+TxCtl.F1+TxCtl.M2+TxPb.F1+TxPb.M1+TxPb.F2+det, data = cells_clu0)
+	y = DGEList(counts_clu0, group = factor(cells_clu0$Treat))
+	y = calcNormFactors(y)
+	print("Calcuating Dispersion")
+	y = estimateDisp(y, design)
+	print("Fitting model")
+	fit = glmQLFit(y, design)
+	print("Calculating QLFTest")
+	qlf = glmQLFTest(fit, contrast=c(0,1,0,0,0,0,0,0,0))
+	return(qlf)
+}
+
+qlf <- calc_fit_all()
+#saveRDS(qlf, file="Pb.clustALL.fit.rds")
+#qlf <- readRDS('Pb.clustALL.fit.rds')
+qlf.res <- topTags(qlf,n=nrow(qlf))$table
+
+write.csv(qlf.res$table,file='C:/Users/John/GoogleDrive/Pb_Hipp_Research/Results/Pb_DE_genes_across_all_clusters.csv')
+
+
+table(qlf.res$table$FDR<0.05)
+qlf.fdr <- qlf.res$table %>% filter(FDR<0.05)
+table(abs(qlf.fdr$logFC)>0.5)
+
+qlf.res[qlf.res$FDR<0.05 & abs(qlf.res$logFC)>0.5,]
+
+
+#supplemental figure 4
+
+FeaturePlot(object=All, features = c("Hbb-bs"),col=c("white","blue")) 
+FeaturePlot(object=All, features = c("Gm42726"),col=c("white","blue")) 
+FeaturePlot(object=All, features = c("Kif5a"),col=c("white","blue")) 
+FeaturePlot(object=All, features = c("Hapln2"),col=c("white","blue")) 
+FeaturePlot(object=All, features = c("Gm15013"),col=c("white","blue")) 
+DimPlot(object = All,reduction='tsne',group.by='seurat_clusters')
+
+#how is it by mouse?
+VlnPlot(All, features = "Hbb-bs", point.size.use=0.3, group.by = 'orig.ident') 
+VlnPlot(All, features = "Gm42726", point.size.use=0.3, group.by = 'orig.ident') 
+VlnPlot(All, features = "Kif5a", point.size.use=0.3, group.by = 'orig.ident') 
+VlnPlot(All, features = "Hapln2", point.size.use=0.3, group.by = 'orig.ident') 
+VlnPlot(All, features = "Gm15013", point.size.use=0.3, group.by = 'orig.ident') 
+
+
+
+### combined figure 2
+library(ggplot2)
+library(grid)
+library(gridExtra)
+
+point.size <- 0.2
+text.size <- 14
+
+f2A <- EnhancedVolcano(qlf.res, 
+                lab=rownames(qlf.res), 
+                title='',
+                subtitle='',
+                x='logFC', 
+                xlim=c(-1,1),
+                y='FDR',
+                pCutoff = 0.05,
+                FCcutoff = 0.5,
+                ylab = bquote(~-Log[10]~adjusted~italic(P)),
+                transcriptLabSize = 5.2,
+                transcriptPointSize = 1.8,
+                transcriptLabhjust = 0.4,
+                #drawConnectors = T,
+                #boxedlabels = T,
+                colAlpha = 1,
+                legendVisible = F,
+                caption="")
+f2B <- VlnPlot(All, features = "Hbb-bs", point.size.use=point.size, group.by = 'Treat') + 
+  geom_boxplot(alpha=0.7, outlier.shape=NA, show.legend=F) +
+  theme(text=element_text(size=text.size), legend.position="none", 
+        axis.title.x=element_blank(), axis.text=element_text(size=text.size))
+f2C <- VlnPlot(All, features = "Gm42726", point.size.use=point.size, group.by = 'Treat') + 
+  geom_boxplot(alpha=0.7, outlier.shape=NA, show.legend=F) +
+  theme(text=element_text(size=text.size), legend.position="none", 
+        axis.title.x=element_blank(), axis.text=element_text(size=text.size))
+f2D <- VlnPlot(All, features = "Kif5a", point.size.use=point.size, group.by = 'Treat') + 
+  geom_boxplot(alpha=0.7, outlier.shape=NA, show.legend=F) +
+  theme(text=element_text(size=text.size), legend.position="none", 
+        axis.title.x=element_blank(), axis.text=element_text(size=text.size))
+f2E <- VlnPlot(All, features = "Hapln2", point.size.use=point.size, group.by = 'Treat') + 
+  geom_boxplot(alpha=0.7, outlier.shape=NA, show.legend=F) +
+  theme(text=element_text(size=text.size), legend.position="none", 
+        axis.title.x=element_blank(), axis.text=element_text(size=text.size))
+f2F <- VlnPlot(All, features = "Gm15013", point.size.use=point.size, group.by = 'Treat') + 
+  geom_boxplot(alpha=0.7, outlier.shape=NA, show.legend=F) +
+  theme(text=element_text(size=text.size), legend.position="none", 
+        axis.title.x=element_blank(), axis.text=element_text(size=text.size))
+
+
+fig2_plots <- list(f2A, f2B, f2C, f2D, f2E, f2F)
+fig2_label <- list("A.", "B.", "C.", "D.", "E.", "F.")
+fig2_plots <- lapply(1:length(fig2_plots), FUN = function(i){
+  arrangeGrob(fig2_plots[[i]], top = textGrob(fig2_label[[i]], x= unit(0, "npc")
+                                ,y= unit(1, "npc"), just= c("left","top"),
+                                gp=gpar(col="black", fontsize=18)))
+})
+
+pdf("Figure_2_DE_overall.pdf", height=10, width=10)
+grid.arrange(grobs=fig2_plots,
+             layout_matrix= rbind(c(1,1,2),
+                                  c(1,1,3),
+                                  c(4,5,6)))
+dev.off()
+
+
+tiff("Figure_2_DE_overall.tif", height=10, width=10, units="in", res=300)
+grid.arrange(grobs=fig2_plots,
+             layout_matrix= rbind(c(1,1,2),
+                                  c(1,1,3),
+                                  c(4,5,6)))
+dev.off()
+
+
+```
+
+
+Cluster specific results. The clusters with fewer cells should be more cautious in terms of interpreting results. 
+```{r}
+
+cluster.specific <- list()
+
+
+cluster.specific[[1]] <- calc_fit(0)
+cluster.specific[[2]] <- calc_fit(1)
+cluster.specific[[3]] <- calc_fit(2)
+cluster.specific[[4]] <- calc_fit(3)
+cluster.specific[[5]] <- calc_fit(4)
+cluster.specific[[6]] <- calc_fit(5)
+cluster.specific[[7]] <- NULL #cluster.specific[[7]] <- calc_fit(6)
+cluster.specific[[8]] <- calc_fit(7)
+cluster.specific[[9]] <- calc_fit(8)
+cluster.specific[[10]] <- calc_fit(9)
+cluster.specific[[11]] <- calc_fit(10)
+cluster.specific[[12]] <- calc_fit(11)
+
+#design matrix not full rank in cluster 6, 10, 11
+
+cluster.specific[[11]] <- NULL
+cluster.specific[[12]] <- NULL
+
+save(cluster.specific,file='cluster.specific.rda')
+
+```
+
+
+
+Explore cluster specific DE genes
+```{r}
+setwd('C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp')
+load('cluster.specific.rda')
+
+clust <- 0
+
+res <- cluster.specific[[clust+1]]
+res.top <- topTags(res,n=nrow(res))
+head(res.top$table)
+
+```
+
+
+
+Gather table of the FDR significant genes per cluster.
+```{r}
+clust.fdr <- c()
+
+for(i in 1:length(cluster.specific)){
+  res <- cluster.specific[[i]]
+  print(paste0('cluster ',i-1))
+  flush.console()
+  if(!is.null(res)){
+    res.top <- topTags(res,n=nrow(res))$table
+    res.top <- res.top[res.top$FDR<0.05,]
+    if(nrow(res.top)!=0){
+      print(paste0('has fdr genes'))
+      flush.console()
+      res.top$gene <- rownames(res.top)
+      res.top$clust <- i-1
+      rownames(res.top) <- NULL
+      clust.fdr <- rbind(clust.fdr,res.top)
+    }
+  }
+}
+
+clust.fdr.fmt <- clust.fdr[,c('clust','gene','logFC','FDR')]
+clust.fdr.fmt$logFC <- round(clust.fdr.fmt$logFC,2)
+clust.fdr.fmt$FDR <- formatC(clust.fdr.fmt$FDR, format="e", digits=2)
+
+write.csv(clust.fdr.fmt,file='cluster_specific_pb_de_genes.csv', row.names=F)
+
+clust.fdr %>% group_by(clust) %>% filter(abs(logFC)>0.5) %>% summarise(n())
+```
+
+
+Full results and cross cluster correlations
+```{r}
+load('cluster.specific.rda')
+clust.full <- list()
+
+for(i in 1:length(cluster.specific)){
+  res <- cluster.specific[[i]]
+  print(paste0('cluster ',i-1))
+  flush.console()
+  if(!is.null(res)){
+    res.top <- topTags(res,n=nrow(res))$table
+    res.top$gene <- rownames(res.top)
+    res.top$clust <- i-1
+    res.fmt <- res.top[,c('clust','gene','logCPM','logFC','PValue','FDR')]
+    rownames(res.fmt) <- NULL
+    clust.full[[paste0('clust',i-1)]] <- res.fmt
+  }
+}
+
+write.xlsx(clust.full, file="Pb_DE_genes_cluster_specific.xlsx")
+
+
+
+### correlations of estimates across clusters
+library(corrplot)
+exp.matrix <- lapply(clust.full,FUN=function(x) x[match(cl0$gene,x$gene),'logFC'])
+exp.matrix <- data.frame(exp.matrix)
+
+M <- cor(exp.matrix, method='spearman')
+M.p <- cor.mtest(exp.matrix, conf.level=0.95)
+
+Mp <- M
+Mp[Mp==1] <- NA
+Mp[lower.tri(Mp)] <- M.p$p[lower.tri(M.p$p)]
+
+pmat <- M.p$p
+pmat[upper.tri(pmat)] <- NA
+
+colmat <- Mp
+colmat[upper.tri(colmat)] <- 'black'
+colmat[!upper.tri(colmat)] <- 'white'
+
+pdf('corrplot_cluster_specific_Pb.pdf')
+# corrplot.mixed(M, upper='ellipse', lower='number', lower.col='black', 
+#                p.mat=M.p$p , insig='p-value', sig.level=1e-10)
+#corrplot(M, method='ellipse', type='upper', addCoef.col='black')
+corrplot.mixed(Mp, upper='ellipse', lower='number', addCoef.col='black',
+               p.mat=pmat, sig.level=c(0.05), pch=formatC(pmat[lower.tri(pmat)],format='e',digits=1),
+               insig = "label_sig", pch.col='black', pch.cex=0.6)
+dev.off()
+```
+
+
+
+
+Volcano plots for cluster specific results
+```{r}
+library(gridExtra)
+library(grid)
+
+clust.names <- c('Endothelial', 'Microglia', 'Oligodendrocytes', 'Pericytes',
+                 'Astrocytes', 'Oligodendrocyte Progenitor','Choroid Plexus',
+                 'Pericytes','Neurons','Microglia','Oligodendrocytes','Fibroblasts')
+
+volcano <- list()
+for(i in 1:length(cluster.specific)){
+  clust.res <- cluster.specific[[i]]
+  if(!is.null(clust.res)){
+    res <- topTags(clust.res,n=nrow(clust.res))$table
+    minFDR <- which(abs(res$FDR-0.05)==min(abs(res$FDR-0.05)))
+    minFDR <- minFDR[length(minFDR)]
+    pcut <- ifelse(res$FDR[1]>0.05,
+                 res$PValue[1],
+                 1.02*res$PValue[minFDR])
+    volcano[[paste0('Clust', i-1)]] <- EnhancedVolcano(res, 
+                lab=rownames(res), 
+                title=paste0('Cluster ', i-1),
+                subtitle=clust.names[i],
+                x='logFC', 
+                xlim=c(-2,2),
+                y='PValue',
+                pCutoff = pcut,
+                FCcutoff = 0.5,
+                xlab = if(i==9){bquote(~Log[2]~ "fold change")}else{""},
+                ylab = if(i==4){bquote(~-Log[10]~italic(P))}else{""},
+                transcriptLabSize = 4.2,
+                transcriptPointSize = 1.8,
+                transcriptLabhjust = 0.4,
+                #drawConnectors = T,
+                #boxedlabels = T,
+                colAlpha = 1,
+                legendPosition='top',
+                caption="",
+                legendVisible = F) +
+      theme(plot.margin=unit(c(0,0,0,0),'cm'))
+  }
+}
+
+tiff('cluster_specific_volcano_grid.tiff',height=10,width=10,units='in',res=300)
+  grid.arrange(grobs=volcano,
+               ncol=3)
+dev.off()
+
+
+```
+
+
+Figure 3: Bar chart, volcano, violin, and upset plot
+```{r}
+setwd('C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp')
+load('cluster.specific.rda')
+load('clustered-all.rda')
+
+library(UpSetR)
+library(gridExtra)
+library(grid)
+library(gridGraphics)
+library(EnhancedVolcano)
+library(Seurat)
+library(ggplot2)
+
+clust.top <- list()
+
+### prep for plots
+top_genes <- function(PorFDR='FDR'){
+  clust.top <- list()
+  for(i in 1:length(cluster.specific)){
+    res <- cluster.specific[[i]]
+    print(paste0('cluster ',i-1))
+    flush.console()
+    if(!is.null(res)){
+      res.top <- topTags(res,n=nrow(res))$table
+      if(PorFDR=='P'){
+        res.top <- res.top[res.top$PValue<0.05,]
+      }else if(PorFDR=='FDR')
+      {
+        res.top <- res.top[res.top$FDR<0.05,]
+      }
+      if(nrow(res.top)!=0){
+        print(paste0('has nominal genes'))
+        flush.console()
+        res.top$gene <- rownames(res.top)
+        res.top$clust <- i-1
+        rownames(res.top) <- NULL
+        clust.top[[paste0('cluster ',i-1)]] <- res.top
+      }
+    }
+  }
+  clust.top
+}
+
+#prep for upset plot
+clust.top <- top_genes(PorFDR='P')
+gene.lists <- lapply(clust.top, FUN=function(x) x$gene)
+
+#prep for bar chart
+updown <- data.frame(
+  reg = c(rep('Up',9),rep('Down',9)),
+  clust = as.character(rep(c(0,1,2,3,4,5,7,8,9),2)),
+  ngene = c(sapply(clust.top,FUN=function(x) table(x$logFC>0)['TRUE']),
+            -1*sapply(clust.top,FUN=function(x) table(x$logFC>0)['FALSE']))
+)
+
+#prep for volcano/violin plots 
+clust1 <- subset(All, subset = seurat_clusters==1)
+
+clust1.res <- cluster.specific[[2]]
+clust1.res <- topTags(clust1.res,n=nrow(clust1.res))$table
+
+clust0.res <- cluster.specific[[1]]
+clust0.res <- topTags(clust0.res,n=nrow(clust0.res))$table
+
+clust0.res <- clust0.res[match(rownames(clust1.res),rownames(clust0.res)),]
+
+
+
+text.size <- 12
+text.size.leg <- 16
+point.size <- 0.2
+
+#tSNE by Pb
+f3a <- DimPlot(object = All,pt.size=point.size,reduction='tsne',group.by='Treat') + 
+  theme(text=element_text(size=text.size), legend.text=element_text(size=text.size.leg))
+
+#bar chart up/down regulated genes
+f3b <- ggplot(updown, aes(x=clust,y=ngene,fill=reg)) +
+  geom_bar(stat='identity',position='identity') +
+  labs(fill='Expression with Lead',
+       x='Cell Cluster',
+       y='N Genes with p-value < 0.05') + 
+  guides(fill= guide_legend(reverse=T)) +
+  theme(legend.position='top') +
+  scale_fill_manual(values=c("firebrick3","royalblue4"))
+
+#volcano cluster 1
+f3c <- EnhancedVolcano(clust1.res, 
+                lab=rownames(clust1.res), 
+                selectLab=c('Hbb-bs','Gm42726','Kif5a'),
+                title='',
+                subtitle='',
+                x='logFC', 
+                xlim=c(-1,1),
+                y='FDR',
+                pCutoff = 0.05,
+                FCcutoff = 0.5,
+                ylab = bquote(~-Log[10]~adjusted~italic(P)),
+                transcriptLabSize = 4.5,
+                transcriptPointSize = 1.4,
+                transcriptLabvjust=0.1,
+                transcriptLabhjust=-0.1,
+                #drawConnectors = T,
+                #boxedlabels = T,
+                colAlpha = 1,
+                legendVisible = F,
+                caption="") +
+  theme(plot.margin = margin(-10,4,0,2))
+
+#vln Gm42726
+f3d <- VlnPlot(All, features = "Gm42726", point.size.use=point.size, group.by = 'Treat') + 
+  geom_boxplot(alpha=0.7, outlier.shape=NA, show.legend=F) +
+  theme(text=element_text(size=text.size), legend.position="none", 
+        axis.title.x=element_blank(), axis.text=element_text(size=text.size))
+#vln Hbb-bs
+f3e <- VlnPlot(All, features = "Hbb-bs", point.size.use=point.size, group.by = 'Treat') + 
+  geom_boxplot(alpha=0.7, outlier.shape=NA, show.legend=F) +
+  theme(text=element_text(size=text.size), legend.position="none", 
+        axis.title.x=element_blank(), axis.text=element_text(size=text.size))
+
+#upset of nominal genes
+f3g <- upset(fromList(gene.lists),sets=c('cluster 0','cluster 1','cluster 2','cluster 3','cluster 4',
+                                  'cluster 5','cluster 7','cluster 8','cluster 9'),
+      order.by='freq',keep.order=T,nintersects=35, text.scale=c(3, 2, 1.8, 2, 1.85, 1.3)) #c(intersection size title, intersection size tick labels, set size title, set size tick labels, set names, numbers above bars)
+f3g #hackish way to get upset to play along
+grid.edit('arrange',name='arrange2')
+f3g_grob <- grid.grab()
+
+#scatter clust 0 vs clust 1
+# f3f <- {~smoothScatter(clust0.res$logFC,clust1.res$logFC,
+#               xlab='Cluster 0 logFC estimates',
+#               ylab='Cluster 1 logFC estimates')
+# ~abline(h=0,v=0)
+# ~text(-0.7,0.7,paste0('r=',round(cor(clust0.res$logFC,clust1.res$logFC,method='spearman'),2)),cex=1.3)}
+# grid.edit('arrange',name='arrange2')
+# f3f <- grid.grab()
+f3f.df <- data.frame('cl0'=clust0.res$logFC,'cl1'=clust1.res$logFC, 
+                     d= densCols(clust0.res$logFC,clust1.res$logFC, colramp=colorRampPalette(blues9[-(1:3)])))
+f3f <- ggplot(f3f.df,aes(x=cl0, y=cl1, col=d)) +
+  geom_hline(yintercept = 0, col='darkgrey') + geom_vline(xintercept = 0, col='darkgrey') +
+  geom_point(size=0.8) +
+  scale_color_identity() +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
+        axis.text=element_text(size=text.size), axis.title=element_text(size=text.size)) +
+  xlab("Cluster 0 LogFC Estimates") + ylab("Cluster 1 LogFC Estimates") +
+  annotate("text", x=-0.6, y=0.7, label=paste0('r=',round(cor(clust0.res$logFC,clust1.res$logFC,method='spearman'),2)), size=text.size-8)
+  
+
+fig3_plots <- list(f3a, f3b, f3c, f3d, f3e, f3f, f3g_grob)
+fig3_label <- list("A.", "B.", "C.", "D.", "E.", "F.", "G.")
+fig3_plots <- lapply(1:length(fig3_plots), FUN = function(i){
+  arrangeGrob(fig3_plots[[i]], top = textGrob(fig3_label[[i]], x= unit(0, "npc")
+                                ,y= unit(1, "npc"), just= c("left","top"),
+                                gp=gpar(col="black", fontsize=18)))
+})
+
+tiff("Figure_3_DE_clust.tif", height=14, width=10, units="in", res=300)
+grid.arrange(fig3_plots[[1]], fig3_plots[[2]], fig3_plots[[3]], fig3_plots[[4]], fig3_plots[[5]], fig3_plots[[6]], fig3_plots[[7]],
+             heights = c(1,1,1.6),
+             layout_matrix=rbind(c(1,2,3),
+                                 c(4,5,6),
+                                 c(7,7,7)))
+dev.off()
+
+
+
+pdf("Figure_3_DE_clust.pdf", height=14, width=10)
+grid.arrange(fig3_plots[[1]], fig3_plots[[2]], fig3_plots[[3]], fig3_plots[[4]], fig3_plots[[5]], fig3_plots[[6]], fig3_plots[[7]],
+             heights = c(1,1,1.6),
+             layout_matrix=rbind(c(1,2,3),
+                                 c(4,5,6),
+                                 c(7,7,7)))
+dev.off()
+
+
+
+```
+
+
+Check if top bulk results are cluster markers 
+```{r}
+#load bulk results
+clust.bulk.res <- readRDS('Pb.clustALL.fit.rds')
+clust.bulk.res <- topTags(clust.bulk.res,n=nrow(clust.bulk.res))$table
+
+#load cluster markers
+library(readxl)
+library(magrittr)
+path <- 'C:/Users/John/Google Drive/Pb_Hipp_Research/Single Cell Hippo Manuscript/Cluster markers padj05.xlsx'
+clust.markers <- path %>%
+  excel_sheets() %>%
+  purrr::set_names() %>%
+  purrr::map(read_excel, path=path)
+
+head(clust.bulk.res)
+table(clust.bulk.res$FDR<0.05)
+head(clust.markers[[1]])
+
+marker.overlap <- lapply(clust.markers, FUN=function(markers){
+  markers <- markers[1:10,]
+  intersect(markers$gene, rownames(clust.bulk.res[clust.bulk.res$FDR<0.05,]))
+})
+
+marker.overlap
+
+clust.bulk.res$clust0 <- rownames(clust.bulk.res) %in% clust.markers[[1]]$gene[1:10] 
+clust.bulk.res$clust1 <- rownames(clust.bulk.res) %in% clust.markers[[2]]$gene[1:10] 
+clust.bulk.res$clust2 <- rownames(clust.bulk.res) %in% clust.markers[[3]]$gene[1:10] 
+clust.bulk.res$clust5 <- rownames(clust.bulk.res) %in% clust.markers[[6]]$gene[1:10] 
+clust.bulk.res$clust10 <- rownames(clust.bulk.res) %in% clust.markers[[11]]$gene[1:10] 
+
+table(clust.bulk.res$FDR<0.05,clust.bulk.res$clust0)
+fisher.test(clust.bulk.res$FDR<0.05,
+            clust.bulk.res$clust0)
+
+table(clust.bulk.res$FDR<0.05,clust.bulk.res$clust1)
+fisher.test(clust.bulk.res$FDR<0.05,
+            clust.bulk.res$clust1)
+
+table(clust.bulk.res$FDR<0.05,clust.bulk.res$clust2)
+fisher.test(clust.bulk.res$FDR<0.05,
+            clust.bulk.res$clust2)
+
+table(clust.bulk.res$FDR<0.05,clust.bulk.res$clust5)
+fisher.test(clust.bulk.res$FDR<0.05,
+            clust.bulk.res$clust5)
+
+table(clust.bulk.res$FDR<0.05,clust.bulk.res$clust10)
+fisher.test(clust.bulk.res$FDR<0.05,
+            clust.bulk.res$clust10)
+
+fisher.overlap <- lapply(clust.markers, FUN=function(markers){
+  #markers <- markers[1:10,]
+  is.marker <- rownames(clust.bulk.res) %in% markers$gene
+  fisher.test(clust.bulk.res$FDR<0.05, is.marker)
+})
+
+table.overlap <- lapply(clust.markers, FUN=function(markers){
+  #markers <- markers[1:10,]
+  is.marker <- rownames(clust.bulk.res) %in% markers$gene
+  table(clust.bulk.res$FDR<0.05, is.marker)
+})
+
+```
+
+
+
+Preparing results for LRpath
+```{r lrpath}
+library(org.Mm.eg.db)
+
+tab.path <- "C:/Users/John/Google Drive/Pb_Hipp_Research/Results"
+seurat.path <- "C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp"
+
+#prepare LR path file for overall results
+res.all <- read.csv(file.path(tab.path,"Pb_DE_genes_across_all_clusters.csv"),header=T)
+names(res.all)[1] <- "geneid"
+res.all <- res.all[,c(1,5,2,3)]
+entrez <- mapIds(org.Mm.eg.db, as.character(res.all$geneid), "ENTREZID", "SYMBOL")
+res.all$geneid <- entrez
+res.all <- res.all[!is.na(res.all$geneid),]
+write.table(res.all, file=file.path(seurat.path,"LR_all_test2.txt"),row.names=F,quote=F,sep="\t",na="")
+
+
+### write tables for cluster specific results
+load(file.path(seurat.path,"cluster.specific.rda"))
+
+
+lapply(names(clust.full), FUN=function(clust){
+  res <- clust.full[[clust]]
+  names(res)[2] <- "geneid"
+  res <- res[,c(2,5,4,3)]
+  entrez <- mapIds(org.Mm.eg.db, as.character(res$geneid), "ENTREZID", "SYMBOL")
+  res$geneid <- entrez
+  res <- res[!is.na(res$geneid),]
+  write.table(res, file=paste0(seurat.path,"/LR_",clust,".txt"),row.names=F,quote=F,sep="\t",na="")
+})
+
+
+#prepare LR path file for genes in at least two clusters
+clust.nom <- lapply(clust.full,FUN=function(x){x[x$PValue<0.05,'gene']})
+nom.all <- unlist(clust.nom)
+nom.shared <- table(nom.all)
+count.shared <- names(nom.shared)[nom.shared >= 2]
+
+all.genes <- factor(as.integer(clust.full[[1]]$gene %in% count.shared))
+names(all.genes) <- clust.full[[1]]$gene
+
+
+```
+
+
+After LR path
+```{r lr_after}
+LR.path <- "C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/LRpath"
+
+library(openxlsx)
+
+LR.all <- read.xlsx(file.path(LR.path,"all_logcpm.xlsx"))
+LR.all <- LR.all[order(LR.all$FDR),]
+LR.all <- LR.all[LR.all$ConceptType=="GOBP",]
+
+write.xlsx(LR.all, file=file.path(tab.path,"LR_path_overall.xlsx"),row.names=F,quote=F)
+
+
+LR.clust <- list()
+clusts <- paste0("clust", c(0,1,2,3,4,5,7,8,9))
+
+for(file in clusts){
+  LR.clust[[file]] <- read.xlsx(file.path(LR.path,paste0(file, "_LR.xlsx")))
+}
+
+write.xlsx(LR.clust, file=file.path(tab.path,"LR_path_clust_specific.xlsx"))
+```
+
+
+Figure 4
+```{r fig4}
+library(UpSetR)
+library(ggplot2)
+library(topGO)
+library(cowplot)
+
+setwd("C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp")
+load('cluster_specific_pathway.RData')
+
+#upset plot set up
+top.paths <- lapply(LR.clust, FUN=function(x){
+  x <- x[x$FDR<0.05,]
+  x$Id
+})
+
+n.fdr <- sapply(top.paths, length)
+barplot(n.fdr, main='Number of FDR significant pathways', las=2)
+top.paths <- top.paths[which(names(top.paths)!="clust4")]
+names(top.paths) <- c('cluster 0','cluster 1','cluster 2','cluster 3','cluster 5','cluster 7','cluster 8','cluster 9')
+
+#barplots set up
+load('cluster.specific.rda')
+clust.full <- list()
+
+for(i in 1:length(cluster.specific)){
+  res <- cluster.specific[[i]]
+  print(paste0('cluster ',i-1))
+  flush.console()
+  if(!is.null(res)){
+    res.top <- topTags(res,n=nrow(res))$table
+    res.top$gene <- rownames(res.top)
+    res.top$clust <- i-1
+    res.fmt <- res.top[,c('clust','gene','logCPM','logFC','PValue','FDR')]
+    rownames(res.fmt) <- NULL
+    clust.full[[paste0('clust',i-1)]] <- res.fmt
+  }
+}
+
+prot.fold.genes <- genesInTerm(clust.GO[[1]], 'GO:0006457')[[1]]
+prot.fold.fc <- clust.full[[2]]
+prot.fold.fc <- prot.fold.fc[prot.fold.fc$gene %in% prot.fold.genes,]
+prot.fold.fc <- prot.fold.fc[order(-prot.fold.fc$logFC),]
+prot.fold.fc$gene <- factor(prot.fold.fc$gene, levels=prot.fold.fc$gene)
+prot.fold.fc$col <- ifelse(prot.fold.fc$PValue<0.05,'blue','red')
+
+int12.genes <- genesInTerm(clust.GO[[1]], 'GO:0006950')[[1]]
+int12.fc <- clust.full[[3]]
+int12.fc <- int12.fc[int12.fc$gene %in% int12.genes,]
+int12.fc <- int12.fc[order(-int12.fc$logFC),]
+int12.fc$gene <- factor(int12.fc$gene, levels=int12.fc$gene)
+int12.fc$col <- ifelse(int12.fc$PValue<0.05,'blue','red')
+
+
+DNArep.genes <- genesInTerm(clust.GO[[1]], 'GO:0006303')[[1]]
+DNArep.fc <- clust.full[[7]]
+DNArep.fc <- DNArep.fc[DNArep.fc$gene %in% DNArep.genes,]
+DNArep.fc <- DNArep.fc[order(-DNArep.fc$logFC),]
+DNArep.fc$gene <- factor(DNArep.fc$gene, levels=DNArep.fc$gene)
+DNArep.fc$col <- ifelse(DNArep.fc$PValue<0.05,'blue','red')
+
+
+
+text.size=14
+
+#upset plot of FDR significant pathways
+f4a <- upset(fromList(top.paths), sets=names(top.paths),
+      order.by='freq',keep.order=T,nintersects = NA, text.scale=c(2, 1.6, 1.5, 1.7, 1.2, 1.2)) #c(intersection size title, intersection size tick labels, set size title, set size tick labels, set names, numbers above bars)
+f4a
+grid.edit('arrange',name='arrange2')
+f4a_grob <- grid.grab()
+
+
+#plot genes in pathway of interest
+
+f4b <- ggplot(prot.fold.fc, aes(x=gene, y=logFC, fill=col)) +
+  geom_bar(stat="identity", width=1) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.border = element_blank(),
+        legend.position = "none", axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.line.y = element_line(), text=element_text(size=text.size), plot.title = element_text(size=text.size-2)) +
+  xlab("") + ylab("LogFC with Pb") + ggtitle("Cluster 1 (Microglia)\nProtein Folding Pathway") +
+  scale_fill_manual(values=c("blue","red"))
+
+f4c <- ggplot(int12.fc, aes(x=gene, y=logFC, fill=col)) +
+  geom_bar(stat="identity", width=1) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.border = element_blank(),
+        legend.position = "none", axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.line.y = element_line(), text=element_text(size=text.size), plot.title = element_text(size=text.size-2)) +
+  xlab("") + ylab("LogFC with Pb") + ggtitle("Cluster 2 (Oligodendrocytes)\nInterleukin-12 Biosynthetic Process") +
+  scale_fill_manual(values=c("blue","red"))
+
+f4d <- ggplot(DNArep.fc, aes(x=gene, y=logFC, fill=col)) +
+  geom_bar(stat="identity", width=1) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.border = element_blank(),
+        legend.position = "none", axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.line.y = element_line(), text=element_text(size=text.size), plot.title = element_text(size=text.size-2)) +
+  xlab("") + ylab("LogFC with Pb") + ggtitle("Cluster 7 (Pericytes)\nDouble-Strand Break Repair") +
+  scale_fill_manual(values=c("blue","red"))
+
+fig4_plots <- list(f4a_grob, f4b, f4c, f4d)
+fig4_label <- list("A.", "B.", "C.", "D.")
+fig4_plots <- lapply(1:length(fig4_plots), FUN = function(i){
+  arrangeGrob(fig4_plots[[i]], top = textGrob(fig4_label[[i]], x= unit(0, "npc")
+                                ,y= unit(1, "npc"), just= c("left","top"),
+                                gp=gpar(col="black", fontsize=18)))
+})
+
+dummy <- ggplot(DNArep.fc, aes(x=gene, y=logFC, fill=col)) +
+  geom_bar(stat="identity", width=1) +
+  theme() + scale_fill_manual(values=c("blue","red"), labels=c(expression(P < 0.05), expression(P >= 0.05))) +
+  labs(fill="")
+legend <- get_legend(dummy)
+
+
+tiff("Figure_4_DE_clust.tif", height=8, width=12, units="in", res=300)
+grid.arrange(fig4_plots[[1]], fig4_plots[[2]], fig4_plots[[3]], fig4_plots[[4]], legend,
+             heights = c(2,1.1), widths=c(1,1,1,0.3),
+             layout_matrix=rbind(c(1,1,1,1),
+                                 c(2,3,4,5)))
+dev.off()
+
+
+
+pdf("Figure_4_DE_clust.pdf", height=8, width=12)
+grid.arrange(fig4_plots[[1]], fig4_plots[[2]], fig4_plots[[3]], fig4_plots[[4]], legend,
+             heights = c(2,1.1), widths=c(1,1,1,0.3),
+             layout_matrix=rbind(c(1,1,1,1),
+                                 c(2,3,4,5)))
+dev.off()
+
+
+
+
+```

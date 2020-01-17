@@ -1,0 +1,549 @@
+---
+title: "clustering"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Single Cell RNAseq Clustering
+
+Loading in data
+```{r packages, echo=FALSE}
+library(dplyr)
+library(Seurat)
+library(cowplot)
+library(rgl)
+library(EnvStats)
+library(betareg)
+library(tidyr)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(openxlsx)
+```
+
+
+```{r read, eval=FALSE}
+#function to load in file, with sequential filtering steps
+#first: no filtering
+#second: 1000 gene minimum
+#third: min cell 3
+filteringSteps <- function(file.name,obj.name)
+{
+  data.raw <- Read10X(data.dir=paste0("/nfs/turbo/bakulski1/Datasets/Pb_Hipp/ruddle.brcf.med.umich.edu/CellRanger_Output/",file.name,"_hippo/outs/raw_gene_bc_matrices/mm10/"))
+  
+  droplets <- CreateSeuratObject(counts = data.raw,min.features=0,min.cells=0,project = obj.name)
+  
+  filter_1000gene <- CreateSeuratObject(counts = data.raw,min.features=1000,min.cells=0,project = obj.name)
+  
+  filter_3cell <- CreateSeuratObject(counts = data.raw,min.features=1000,min.cells=3,project = obj.name)
+  
+  return(list(droplets=droplets,filter_1000gene=filter_1000gene,filter_3cell=filter_3cell))
+}
+
+#function to get number of droplets, number of cells with >15 pct mt genes, descriptive data on number counts and features
+QCValues <- function(SeuratList){
+  QC.values <- data.frame(matrix(0,nrow=3,ncol=8))
+  rownames(QC.values) <- c('NoFilter','Filter1000g','Filter1000g_3cell')
+  colnames(QC.values) <- c('Droplets','Mito_Gt_15pct','gm_pctMT','gsd_pctMT','gm_nCount','gsd_nCount','gm_nFeature','gsd_nFeature')
+  
+  pct.mito.drop <- PercentageFeatureSet(object = SeuratList$drop, pattern = "^mt-")
+  SeuratList$droplets <- AddMetaData(object = SeuratList$droplets, metadata = pct.mito.drop, col.name = "percent.mito")
+  
+  pct.mito.1000g <- PercentageFeatureSet(object = SeuratList$filter_1000gene, pattern = "^mt-")
+  SeuratList$filter_1000gene <- AddMetaData(object = SeuratList$filter_1000gene, metadata = pct.mito.1000g, col.name = "percent.mito")
+  
+  pct.mito.3c <- PercentageFeatureSet(object = SeuratList$filter_3cell, pattern = "^mt-")
+  SeuratList$filter_3cell <- AddMetaData(object = SeuratList$filter_3cell, metadata = pct.mito.3c, col.name = "percent.mito")
+  
+  QC.values$Droplets <- c(table(SeuratList$droplets@meta.data$nCount_RNA>0)['TRUE'],
+                          table(SeuratList$filter_1000gene@meta.data$nCount_RNA>0)['TRUE'],
+                          table(SeuratList$filter_3cell@meta.data$nCount_RNA>0)['TRUE'])
+  QC.values$Mito_Gt_15pct <- c(length(pct.mito.drop[pct.mito.drop>15 & !is.na(pct.mito.drop)]),
+                               length(pct.mito.1000g[pct.mito.1000g>15 & !is.na(pct.mito.1000g)]),
+                               length(pct.mito.3c[pct.mito.3c>15 & !is.na(pct.mito.3c)]))
+  QC.values$gm_pctMT <- c(NA,
+                           geoMean(pct.mito.1000g[,1]),
+                           geoMean(pct.mito.3c[,1]))
+  QC.values$gsd_pctMT <- c(NA,
+                            geoSD(pct.mito.1000g[,1]),
+                            geoSD(pct.mito.3c[,1]))
+  QC.values$gm_nCount <- c(NA,
+                               geoMean(SeuratList$filter_1000gene@meta.data$nCount_RNA),
+                               geoMean(SeuratList$filter_3cell@meta.data$nCount_RNA))
+  QC.values$gsd_nCount <- c(NA,
+                               geoSD(SeuratList$filter_1000gene@meta.data$nCount_RNA),
+                               geoSD(SeuratList$filter_3cell@meta.data$nCount_RNA))
+  QC.values$gm_nFeature <- c(NA,
+                                 geoMean(SeuratList$filter_1000gene@meta.data$nFeature_RNA),
+                                 geoMean(SeuratList$filter_3cell@meta.data$nFeature_RNA))
+  QC.values$gsd_nFeature <- c(NA,
+                             geoSD(SeuratList$filter_1000gene@meta.data$nFeature_RNA),
+                             geoSD(SeuratList$filter_3cell@meta.data$nFeature_RNA))
+  QC.values$m_pctMT <- c(NA,
+                         median(pct.mito.1000g[,1]),
+                         median(pct.mito.3c[,1]))
+  QC.values$iqr_pctMT <- c(NA,
+                           IQR(pct.mito.1000g[,1]),
+                           IQR(pct.mito.3c[,1]))
+  QC.values$m_nCount <- c(NA,
+                          median(SeuratList$filter_1000gene@meta.data$nCount_RNA),
+                          median(SeuratList$filter_3cell@meta.data$nCount_RNA))
+  QC.values$iqr_nCount <- c(NA,
+                            IQR(SeuratList$filter_1000gene@meta.data$nCount_RNA),
+                            IQR(SeuratList$filter_3cell@meta.data$nCount_RNA))
+  QC.values$m_nFeature <- c(NA,
+                            median(SeuratList$filter_1000gene@meta.data$nFeature_RNA),
+                            median(SeuratList$filter_3cell@meta.data$nFeature_RNA))
+  QC.values$iqr_nFeature <- c(NA,
+                              IQR(SeuratList$filter_1000gene@meta.data$nFeature_RNA),
+                              IQR(SeuratList$filter_3cell@meta.data$nFeature_RNA))
+  
+  SeuratList$QC <- QC.values
+  return(SeuratList)
+}
+
+### load in data (these steps on cluster)
+
+Pb.F1 <- filteringSteps(file.name='T103c',obj.name='Pb.F1')
+Pb.M1 <- filteringSteps(file.name='T107d',obj.name='Pb.M1')
+Ctl.M1 <- filteringSteps(file.name='T109d',obj.name='Ctl.M1')
+Pb.F2 <- filteringSteps(file.name='T112c',obj.name='Pb.F2')
+Ctl.F1 <- filteringSteps(file.name='T113c',obj.name='Ctl.F1')
+Pb.M2 <- filteringSteps(file.name='T116d',obj.name='Pb.M2')
+Ctl.M2 <- filteringSteps(file.name='T118d',obj.name='Ctl.M2')
+Ctl.F2 <- filteringSteps(file.name='T119g',obj.name='Ctl.F2')
+
+Pb.F1 <- QCValues(Pb.F1)
+Pb.M1 <- QCValues(Pb.M1)
+Ctl.M1 <- QCValues(Ctl.M1)
+Pb.F2 <- QCValues(Pb.F2)
+Ctl.F1 <- QCValues(Ctl.F1)
+Pb.M2 <- QCValues(Pb.M2)
+Ctl.M2 <- QCValues(Ctl.M2)
+Ctl.F2 <- QCValues(Ctl.F2)
+
+#put in list for easy manipulation later
+data.list <- list(Pb.F1=Pb.F1,Pb.M1=Pb.M1,
+             Ctl.M1=Ctl.M1,Pb.F2=Pb.F2,
+             Ctl.F1=Ctl.F1,Pb.M2=Pb.M2,
+             Ctl.M2=Ctl.M2,Ctl.F2=Ctl.F2)
+save(data.list,file='data.list.rda')
+```
+
+
+Compile Initial QC Metrics
+```{r qc}
+
+### load in list from previous step
+
+setwd('C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp')
+load('data.list.rda')
+
+
+### compile QC values
+
+droplets_seq <- sapply(data.list, function(x) x$QC[1,'Droplets'])
+final_cells <- sapply(data.list, function(x) x$QC[3,'Droplets'])
+mGene <- sapply(data.list, function(x) x$QC[3,'m_nFeature'])
+iqrGene <- sapply(data.list, function(x) x$QC[3,'iqr_nFeature'])
+mUMI <- sapply(data.list, function(x) x$QC[3,'m_nCount'])
+iqrUMI <- sapply(data.list, function(x) x$QC[3,'iqr_nCount'])
+m_mito <- sapply(data.list, function(x) x$QC[3,'m_pctMT'])
+n_mito <- sapply(data.list, function(x) x$QC[3,'Mito_Gt_15pct'])
+iqr_mito <- sapply(data.list, function(x) x$QC[3,'iqr_pctMT'])
+
+qc.tab <- data.frame(Treatment=gsub('\\..*','',names(data.list)),
+                     Sex=gsub('.*\\.|1|2','',names(data.list)),
+                     Initial_Droplets=droplets_seq,
+                     Droplets_Filtered=paste0(droplets_seq-final_cells,' (',round(100*(droplets_seq-final_cells)/droplets_seq,2),')'),
+                     Post_Filter_Cells=paste0(final_cells,' (',round(100*final_cells/droplets_seq,2),')'),
+                     features_expressed=paste0(mGene, ' (',iqrGene,')'),
+                     UMI_nCount=paste0(mUMI,' (',iqrUMI,')'),
+                     pct_mito_gene=paste0(round(m_mito,1),' (',round(iqr_mito,1),')'))
+                    
+write.csv(qc.tab,file='supp_table1.csv')
+
+
+### look at distributions of some of the metrics
+sum(final_cells)
+range(droplets_seq)
+sum(droplets_seq[qc.tab$Treatment=='Pb'])
+sum(droplets_seq[qc.tab$Treatment=='Ctl'])
+
+range(round(100*final_cells/droplets_seq,2))
+t.test(round(100*final_cells/droplets_seq,2)~qc.tab$Treatment)
+
+t.test(mUMI~qc.tab$Treatment)
+t.test(mGene~qc.tab$Treatment)
+
+range(n_mito)
+t.test(n_mito~qc.tab$Treatment)
+
+hist(droplets_seq,main='Initial Droplets')
+hist(final_cells,main='Cells After Filtering')
+hist(mGene,main='Features After Filtering')
+hist(mUMI,main='Count After Filtering')
+hist(m_mito,main='Pct Mito After Filtering')
+hist(n_mito,main='N with Pct MT genes > 15% After Filtering')
+
+```
+
+
+Create merged, filtered data object for further analysis in Seurat
+```{r filter merge}
+### collect the fully filtered seurat objects together
+itsRAW <- unlist(lapply(data.list, function(x) x['droplets']))
+names(itsRAW) <- gsub('\\.droplets','',names(itsRAW))
+filtered <- unlist(lapply(data.list, function(x) x['filter_3cell']))
+names(filtered) <- gsub('\\.filter_3cell','',names(filtered))
+
+filtered$Pb.F1@meta.data[, "Sample"] <- "t103c"
+filtered$Pb.M1@meta.data[, "Sample"] <- "t107d"
+filtered$Ctl.M1@meta.data[, "Sample"] <- "t109d"
+filtered$Pb.F2@meta.data[, "Sample"] <- "t112c"
+filtered$Ctl.F1@meta.data[, "Sample"] <- "t113c"
+filtered$Pb.M2@meta.data[, "Sample"] <- "t116d"
+filtered$Ctl.M2@meta.data[, "Sample"] <- "t118d"
+filtered$Ctl.F2@meta.data[, "Sample"] <- "t119g"
+
+filtered$Pb.F1@meta.data[, "Sex"] <- "F"
+filtered$Pb.M1@meta.data[, "Sex"] <- "M"
+filtered$Ctl.M1@meta.data[, "Sex"] <- "M"
+filtered$Pb.F2@meta.data[, "Sex"] <- "F"
+filtered$Ctl.F1@meta.data[, "Sex"] <- "F"
+filtered$Pb.M2@meta.data[, "Sex"] <- "M"
+filtered$Ctl.M2@meta.data[, "Sex"] <- "M"
+filtered$Ctl.F2@meta.data[, "Sex"] <- "F"
+
+filtered$Pb.F1@meta.data[, "Treat"] <- "Pb"
+filtered$Pb.M1@meta.data[, "Treat"] <- "Pb"
+filtered$Ctl.M1@meta.data[, "Treat"] <- "Ctrl"
+filtered$Pb.F2@meta.data[, "Treat"] <- "Pb"
+filtered$Ctl.F1@meta.data[, "Treat"] <- "Ctrl"
+filtered$Pb.M2@meta.data[, "Treat"] <- "Pb"
+filtered$Ctl.M2@meta.data[, "Treat"] <- "Ctrl"
+filtered$Ctl.F2@meta.data[, "Treat"] <- "Ctrl"
+
+
+All <- merge(filtered$Pb.F1,filtered[-1],add.cell.ids = names(filtered))
+RAW <- merge(itsRAW$Pb.F1,itsRAWWW[-1],add.cell.ids=names(itsRAW))
+
+save(All,file='filtered_merged_samples.rda')
+
+
+### plots for compiled qc metrics
+
+pdf('pre_filter_QC.pdf')
+  VlnPlot(object=RAW, features='nCount_RNA')
+  VlnPlot(object=RAW, features='nFeature_RNA')
+  VlnPlot(object=RAW, features='percent.mito')
+dev.off()
+
+#supplemental figure 2
+pdf('post_filter_QC.pdf',width=12,height=6)
+  nRNA <- VlnPlot(object=All, features='nCount_RNA',pt.size=0.6) +
+    ggtitle("") + xlab("Mouse Hippocampus Sample") + ylab("Number of UMI") + theme(legend.position="none", plot.margin=margin(0,0,0,0,'cm'))
+  nFeat <- VlnPlot(object=All, features='nFeature_RNA',pt.size=0.6) +
+    ggtitle("") + xlab("") + ylab("Gene Expression Level") + theme(legend.position="none",plot.margin=margin(0,0,0,0,'cm'))
+  pMito <- VlnPlot(object=All, features='percent.mito',pt.size=0.6) +
+    ggtitle("") + xlab("") + ylab("Percent Mitochondrial Genes") + theme(plot.margin=margin(0,0,0,0,'cm'))
+  # layout <- rbind(c(1,1,2,2,3,3,3),
+  #                 c(1,1,2,2,3,3,3))
+  # grid.arrange(nRNA,nFeat,pMito,layout_matrix=layout)
+  plot_grid(nFeat,nRNA,pMito, labels=c('A','B','C'), nrow=1, ncol=3, rel_widths = c(3.1,3.1,3.8))
+dev.off()
+
+
+### how many genes in total
+genes <- AverageExpression(All)
+dim(genes$RNA)
+all_zero_check <- rowMeans(genes$RNA)
+table(all_zero_check==0)
+
+genes.raw <- AverageExpression(RAW)
+dim(genes.raw)
+all_zero_check <- rowMeans(genes.raw$RNA)
+table(all_zero_check==0)
+
+
+```
+
+
+Clustering
+```{r clust}
+setwd('C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp')
+load('filtered_merged_samples.rda')
+
+All <- NormalizeData(All)
+All <- FindVariableFeatures(object = All, mean.function = ExpMean, dispersion.function = LogVMR,
+                         mean.cutoff = c(0.0125,140), dispersion.cutoff = c(-0.1,Inf))
+All<-ScaleData(All)
+
+All <- RunPCA(object = All)
+DimPlot(object=All, reduction="pca")
+
+
+
+#how many pcs
+ElbowPlot(All)
+
+#tnse and forming clusters
+All <- RunTSNE(All, dims.use = 1:12, do.fast = T, dim.embed = 3)
+All <- FindNeighbors(object=All,dims=1:12,reduction='pca')
+All <- FindClusters(object = All, resolution = 0.2)
+
+table(All@meta.data$seurat_clusters)
+table(All@meta.data$seurat_clusters,All$orig.ident)
+
+
+#plot by sample cluster
+DimPlot(object = All,pt.size=1.2,reduction='tsne',group.by='seurat_clusters')
+DimPlot(object = All,pt.size=1.2,reduction='tsne',group.by='orig.ident')
+DimPlot(object = All,pt.size=1.2,reduction='tsne',group.by='Treat')
+
+save(All,file='clustered-all.rda')
+```
+
+Cluster Percentages by Pb
+```{r clust pct pb}
+freq_table <- prop.table(table(All$seurat_clusters, All$Treat), 2)
+
+### set up covars
+props <- prop.table(table(All$seurat_clusters,All$orig.ident),2)
+treat <- gsub('\\..*','',colnames(props))
+
+
+### beta regression
+beta.res<-data.frame(mat.or.vec(12,3))
+names(beta.res)<-c("cluster","coef","p-value")
+props.zeros <- props
+props.zeros[props.zeros==0] <- 1e-6
+for (i in 0:11){
+  #table(All$seurat_clusters==i, All$Treat)
+  test<-betareg(props.zeros[i+1,]~treat)
+  beta.res[i+1,1]<-i
+  beta.res[i+1,2]<-round(test$coefficients$mean[2],3)
+  beta.res[i+1,3]<-summary(test)$coefficients$mean[2,4]
+}
+beta.res
+
+### combined clusters with same predicted cell type
+olig_combi <- props[3,] + props[11,]
+test_oli <- betareg(olig_combi~treat)
+summary(test_oli)
+predict(test_oli)
+
+micg_combi <- props[2,] + props[10,]
+test_mcg <- betareg(micg_combi~treat)
+summary(test_mcg)
+predict(test_mcg)
+
+peri_combi <- props[4,] + props[8,]
+test_peri <- betareg(peri_combi~treat)
+summary(test_peri)
+predict(test_peri)
+
+beta.res[2,3] <- summary(test_mcg)$coefficients$mean[2,4]
+beta.res[10,3] <- NA
+beta.res[3,3] <- summary(test_oli)$coefficients$mean[2,4]
+beta.res[11,3] <- NA
+beta.res[4,3] <- summary(test_peri)$coefficients$mean[2,4]
+beta.res[8,3] <- NA
+
+### table of cluster % by Pb
+freq_table <- data.frame(cluster=rownames(freq_table),Ctrl=freq_table[,1],Pb=freq_table[,2])
+tab.clust_x_pb <- cbind(Ncells=as.numeric(table(All$seurat_clusters)),freq_table,beta.res[,2:3])
+tab.clust_x_pb <- tab.clust_x_pb[,c(2,1,3:6)]
+tab.clust_x_pb$Ctrl <- round(100*tab.clust_x_pb$Ctrl,2)
+tab.clust_x_pb$Pb <- round(100*tab.clust_x_pb$Pb,2)
+tab.clust_x_pb <- tab.clust_x_pb[,-5]
+write.csv(tab.clust_x_pb,file='cluster_by_pb.csv',row.names = F)
+
+
+###stacked bar chart
+
+#set up data frame
+props.m <- t(props)
+props.m <- as.data.frame.matrix(props.m)
+props.m$mouse <- rownames(props.m)
+
+#combine 1+9 and 2+10 and 3+7
+props.m$'1' <- props.m$'1' + props.m$'9'
+props.m$'2' <- props.m$'2' + props.m$'10'
+props.m$'3' <- props.m$'3' + props.m$'7'
+props.m <- props.m[,-c(8,10,11)]
+rowSums(props.m[,-10])
+names(props.m)[1:9] <- c('Endothelia','Microglia','Oligodendrocytes','Pericytes','Astrocytes',
+                          'Oligodendrocyte Progenitors','Choroid Plexus','Neurons','Fibroblasts')
+
+#convert to long
+long_props <- gather(props.m, cluster, pct, -mouse)
+long_props$cluster <- factor(long_props$cluster, 
+                             levels= c('Endothelia','Microglia','Oligodendrocytes','Pericytes','Astrocytes',
+                                       'Oligodendrocyte Progenitors','Choroid Plexus','Neurons','Fibroblasts'))
+
+
+ggplot(data=long_props, aes(x=mouse, y=pct, fill=cluster)) +
+  geom_bar(stat="identity")+ 
+  scale_fill_discrete(name='') +
+  theme(axis.text=element_text(size=16),
+        axis.text.x=element_text(hjust=-0.1, angle=-45),
+        axis.title=element_text(size=18),
+        legend.title=element_text(size=14),
+        legend.text=element_text(size=12)) +
+  xlab("") + ylab("Proportion of Cells")
+
+
+```
+
+Cluster Markers
+```{r clust mark}
+all.markers <- FindAllMarkers(object = All, only.pos = TRUE, min.pct = 0.1)
+
+print(all.markers %>% group_by(cluster) %>% top_n(5, avg_logFC) %>% data.frame)
+
+
+### how many markers per cluster
+all.markers %>% group_by(cluster) %>% summarize(n_p05=sum(p_val_adj<0.05),npe10=sum(p_val_adj<1e-10),npe100=sum(p_val_adj<1e-100),np0=sum(p_val_adj==0))
+
+
+### write file with markers having adj p < 0.05
+top05 <- all.markers %>% group_by(cluster) %>% filter(p_val_adj<0.05)
+
+marker.excel.pages <- list('clust0' = top05 %>% filter(cluster==0),
+                           'clust1' = top05 %>% filter(cluster==1),
+                           'clust2' = top05 %>% filter(cluster==2),
+                           'clust3' = top05 %>% filter(cluster==3),
+                           'clust4' = top05 %>% filter(cluster==4),
+                           'clust5' = top05 %>% filter(cluster==5),
+                           'clust6' = top05 %>% filter(cluster==6),
+                           'clust7' = top05 %>% filter(cluster==7),
+                           'clust8' = top05 %>% filter(cluster==8),
+                           'clust9' = top05 %>% filter(cluster==9),
+                           'clust10' = top05 %>% filter(cluster==10),
+                           'clust11' = top05 %>% filter(cluster==11))
+write.xlsx(marker.excel.pages, file="Cluster markers padj05.xlsx")
+```
+
+
+#Figure 1 Panel
+A tSNE cluster
+B tSNE mouse
+C-K tSNE cell type markers
+
+```{r fig1}
+point.size.a <- 0.9
+point.size.b <- 0.6
+text.size <- 12
+text.size.leg <- 16
+
+#cluster
+clust <- DimPlot(object = All,pt.size=point.size.a,reduction='tsne',group.by='seurat_clusters') + 
+  theme(text=element_text(size=text.size), legend.text=element_text(size=text.size.leg))
+
+#mouse
+mouse <- DimPlot(object = All,pt.size=point.size.a,reduction='tsne',group.by='orig.ident') + 
+  theme(text=element_text(size=text.size), legend.text=element_text(size=text.size.leg))
+
+#endothelial
+endo <- FeaturePlot(object=All, features = c("Cldn5"),col=c("grey","blue"), pt.size=point.size.b) +
+  ggtitle('Endothelia - Cldn5') + xlab('tSNE 1') + ylab('tSNE 2') + theme(text=element_text(size=text.size), legend.text=element_text(size=text.size.leg))
+
+#microglial
+micro <- FeaturePlot(object=All, features = c("Csf1r"),col=c("grey","blue"), pt.size=point.size.b) +
+  ggtitle('Microglia - Csf1r') + xlab('tSNE 1') + ylab('tSNE 2') + theme(text=element_text(size=text.size), legend.text=element_text(size=text.size.leg))
+
+#oligodendrocytes
+olig <- FeaturePlot(object=All, features = c("Plp1"),col=c("grey","blue"), pt.size=point.size.b) +
+  ggtitle('Oligodendrocytes - Plp1') + xlab('tSNE 1') + ylab('tSNE 2') + theme(text=element_text(size=text.size), legend.text=element_text(size=text.size.leg))
+
+#peri
+peri <- FeaturePlot(object=All, features = c("Vtn"),col=c("grey","blue"), pt.size=point.size.b)  +
+  ggtitle('Pericytes - Vtn') + xlab('tSNE 1') + ylab('tSNE 2') + theme(text=element_text(size=text.size), legend.text=element_text(size=text.size.leg))
+
+#astrocytes
+astro <- FeaturePlot(object=All, features = c("Sox9"),col=c("grey","blue"), pt.size=point.size.b)  +
+  ggtitle('Astrocytes - Sox9') + xlab('tSNE 1') + ylab('tSNE 2') + theme(text=element_text(size=text.size), legend.text=element_text(size=text.size.leg))
+
+#olig pregen
+olipre <- FeaturePlot(object=All, features = c("Pdgfra"),col=c("grey","blue"), pt.size=point.size.b) +
+  ggtitle('Oligodendrocyte Progenitor - Pdgfra') + xlab('tSNE 1') + ylab('tSNE 2') + theme(text=element_text(size=text.size), legend.text=element_text(size=text.size.leg))
+
+#choroid plexus
+chor <- FeaturePlot(object=All, features = c("Kl"),col=c("grey","blue"), pt.size=point.size.b) +
+  ggtitle('Choroid Plexus - Kl') + xlab('tSNE 1') + ylab('tSNE 2') + theme(text=element_text(size=text.size), legend.text=element_text(size=text.size.leg))
+
+#neuron
+neu <- FeaturePlot(object=All, features = c("Reln"),col=c("grey","blue"), pt.size=point.size.b)  +
+  ggtitle('Neuron - Reln') + xlab('tSNE 1') + ylab('tSNE 2') + theme(text=element_text(size=text.size), legend.text=element_text(size=text.size.leg))
+
+#fibroblast
+fibro <- FeaturePlot(object=All, features = c("Col1a1"),col=c("grey","blue")) +
+  ggtitle('Fibroblast - Col1a1') + xlab('tSNE 1') + ylab('tSNE 2') + theme(text=element_text(size=text.size), legend.text=element_text(size=text.size.leg)) 
+
+
+fig1_plots <- list(clust, mouse, endo, micro, olig, peri, astro, olipre, chor, neu, fibro)
+fig1_label <- list("A.", "B.", "C.", "D.", "E.", "F.", "G.", "H.", "I.", "J.", "K.")
+fig1_plots <- lapply(1:11, FUN = function(i){
+  arrangeGrob(fig1_plots[[i]], top = textGrob(fig1_label[[i]], x= unit(0, "npc")
+                                ,y= unit(1, "npc"), just= c("left","top"),
+                                gp=gpar(col="black", fontsize=18)))
+})
+
+#combined figure 1
+pdf("Figure_1_tSNE_clusters.pdf", height=14, width=10)
+grid.arrange(grobs=fig1_plots, heights = c(0.8,0.8,1,1,1),
+             layout_matrix= rbind(c(1,1,1,2,2,2),
+                                  c(1,1,1,2,2,2),
+                                  c(3,3,4,4,5,5),
+                                  c(6,6,7,7,8,8),
+                                  c(9,9,10,10,11,11)))
+dev.off()
+
+
+tiff("Figure_1_tSNE_clusters.tif", height=14, width=10, units="in", res=300)
+grid.arrange(grobs=fig1_plots, heights = c(0.8,0.8,1,1,1),
+             layout_matrix= rbind(c(1,1,1,2,2,2),
+                                  c(1,1,1,2,2,2),
+                                  c(3,3,4,4,5,5),
+                                  c(6,6,7,7,8,8),
+                                  c(9,9,10,10,11,11)))
+dev.off()
+
+
+
+
+table(All$seurat_clusters,All$Treat)
+```
+
+Descriptive information by cluster
+```{r clust desc}
+
+### supplemental fig 4: violin plots by cell cluster
+pdf('cluster_violin_plots.pdf')
+
+  nRNA <- VlnPlot(object=All, features='nCount_RNA',pt.size=0.6) +
+    ggtitle("") + xlab("Cluster") + ylab("Number of UMI") + theme(legend.position="none", plot.margin=margin(0,0,0,0,'cm'))
+  nFeat <- VlnPlot(object=All, features='nFeature_RNA',pt.size=0.6) +
+    ggtitle("") + xlab("") + ylab("Gene Expression Level") + theme(legend.position="none",plot.margin=margin(0,0,0,0,'cm'))
+  pMito <- VlnPlot(object=All, features='percent.mito',pt.size=0.6) +
+    ggtitle("") + xlab("") + ylab("Percent Mitochondrial Genes") + theme(plot.margin=margin(0,0,0,0,'cm'))
+
+  plot_grid(nFeat,nRNA,pMito, labels=c('A','B','C'), nrow=1, ncol=3, rel_widths = c(3.4,3.4,4))
+  
+dev.off()
+
+
+### expression means by cluster
+tapply(All$nFeature_RNA, All$seurat_clusters, mean)
+
+gene.by.cluster <- All@meta.data %>% group_by(seurat_clusters) %>%
+  summarize(nFeature=geoMean(nFeature_RNA))
+
+mean(gene.by.cluster$nFeature)
+range(gene.by.cluster$nFeature)
+
+```
