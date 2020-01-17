@@ -30,6 +30,18 @@ table(All@meta.data$orig.ident, All@meta.data$res.0.4)
 library(edgeR)
 library(Seurat)
 library(EnhancedVolcano)
+library(gridExtra)
+library(grid)
+library(ggplot2)
+library(corrplot)
+library(UpSetR)
+library(gridGraphics)
+library(readxl)
+library(magrittr)
+library(topGO)
+library(cowplot)
+library(org.Mm.eg.db)
+library(openxlsx)
 ```
 
 
@@ -140,9 +152,6 @@ VlnPlot(All, features = "Gm15013", point.size.use=0.3, group.by = 'orig.ident')
 
 
 ### combined figure 2
-library(ggplot2)
-library(grid)
-library(gridExtra)
 
 point.size <- 0.2
 text.size <- 14
@@ -315,7 +324,7 @@ write.xlsx(clust.full, file="Pb_DE_genes_cluster_specific.xlsx")
 
 
 ### correlations of estimates across clusters
-library(corrplot)
+
 exp.matrix <- lapply(clust.full,FUN=function(x) x[match(cl0$gene,x$gene),'logFC'])
 exp.matrix <- data.frame(exp.matrix)
 
@@ -348,9 +357,6 @@ dev.off()
 
 Volcano plots for cluster specific results
 ```{r}
-library(gridExtra)
-library(grid)
-
 clust.names <- c('Endothelial', 'Microglia', 'Oligodendrocytes', 'Pericytes',
                  'Astrocytes', 'Oligodendrocyte Progenitor','Choroid Plexus',
                  'Pericytes','Neurons','Microglia','Oligodendrocytes','Fibroblasts')
@@ -404,13 +410,6 @@ setwd('C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp')
 load('cluster.specific.rda')
 load('clustered-all.rda')
 
-library(UpSetR)
-library(gridExtra)
-library(grid)
-library(gridGraphics)
-library(EnhancedVolcano)
-library(Seurat)
-library(ggplot2)
 
 clust.top <- list()
 
@@ -586,8 +585,7 @@ clust.bulk.res <- readRDS('Pb.clustALL.fit.rds')
 clust.bulk.res <- topTags(clust.bulk.res,n=nrow(clust.bulk.res))$table
 
 #load cluster markers
-library(readxl)
-library(magrittr)
+
 path <- 'C:/Users/John/Google Drive/Pb_Hipp_Research/Single Cell Hippo Manuscript/Cluster markers padj05.xlsx'
 clust.markers <- path %>%
   excel_sheets() %>%
@@ -649,7 +647,7 @@ table.overlap <- lapply(clust.markers, FUN=function(markers){
 
 Preparing results for LRpath
 ```{r lrpath}
-library(org.Mm.eg.db)
+
 
 tab.path <- "C:/Users/John/Google Drive/Pb_Hipp_Research/Results"
 seurat.path <- "C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp"
@@ -696,7 +694,6 @@ After LR path
 ```{r lr_after}
 LR.path <- "C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/LRpath"
 
-library(openxlsx)
 
 LR.all <- read.xlsx(file.path(LR.path,"all_logcpm.xlsx"))
 LR.all <- LR.all[order(LR.all$FDR),]
@@ -718,10 +715,6 @@ write.xlsx(LR.clust, file=file.path(tab.path,"LR_path_clust_specific.xlsx"))
 
 Figure 4
 ```{r fig4}
-library(UpSetR)
-library(ggplot2)
-library(topGO)
-library(cowplot)
 
 setwd("C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp")
 load('cluster_specific_pathway.RData')
