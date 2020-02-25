@@ -87,7 +87,7 @@ calc_fit <- function(clusterID) {
 }
 ```
 
-This is edgeR DE for all clusters
+This is edgeR DE analysis for all clusters
 ```{r}
 calc_fit_all <- function() {
 	print(sprintf("Analyzing cluster %s","ALL"))
@@ -844,5 +844,74 @@ dev.off()
 
 
 
+
+```
+
+# MuSiC
+```{r music}
+library(MuSiC)
+library(BisqueRNA)
+library(Seurat)
+library(Biobase)
+
+### bulk human progenitor neuron data - prepare in ExpressionSet
+hmn.prog <- read.table("C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/HumanNeuroProg/ExpectCounts_all_samples.txt", header=T)
+hmn.prog.matrix <- as.matrix(hmn.prog[,-c(1,2)])
+rownames(hmn.prog.matrix) <- hmn.prog$Gene.ID
+
+hmn.prog.pd <- data.frame(treat=gsub('_.*','',colnames(hmn.prog.matrix)),
+                          time=gsub('.*_','',colnames(hmn.prog.matrix)))
+rownames(hmn.prog.pd) <- colnames(hmn.prog.matrix)
+hmn.prog.pd <- AnnotatedDataFrame(hmn.prog.pd)
+
+hmn.prog.eset <- ExpressionSet(assayData=hmn.prog.matrix, phenoData=hmn.prog.pd)
+
+
+#### single cell mouse hipp data
+load('C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/clustered-all.rda')
+
+ms.hipp.eset <- SeuratToExpressionSet(All, delimiter='_', position=1, version='v3')
+
+library(biomaRt)
+human = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+mouse = useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+ 
+genes.human = getLDS(attributes = c("mgi_symbol"), filters = "mgi_symbol", values = rownames(ms.hipp.eset) , mart = mouse, attributesL = c("hgnc_symbol"), martL = human, uniqueRows=T)
+table(rownames(ms.hipp.eset) %in% genes.human$MGI.symbol)
+
+#for now, dumping genes that are non-uniquely matching that don't have a gene symbol that is same (i.e. ones not like Rln1 and RLN1)
+library(dplyr)
+genes.human.uni <- genes.human %>% group_by(MGI.symbol) %>% filter(n()==1)
+genes.human.nonuni <- genes.human %>% group_by(MGI.symbol) %>% filter(n()>1)
+genes.human.unipick <- genes.human.nonuni %>% group_by(MGI.symbol) %>% filter(toupper(MGI.symbol)==HGNC.symbol) 
+table(unique(genes.human.nonuni$MGI.symbol) %in% genes.human.unipick$MGI.symbol) 
+
+mouse.to.human <- rbind(genes.human.unipick, genes.human.uni) %>% data.frame
+m2h <- mouse.to.human$HGNC.symbol
+names(m2h) <- mouse.to.human$MGI.symbol 
+m2h <- m2h[!duplicated(m2h)] #have to get rid of non-unique human for rownames to work....
+m2h <- m2h[m2h!='PISD'] #AHHH there is a Pisd and PISD in original, remove Psid to stop dup rowname
+
+rownames(ms.hipp.eset) <- ifelse(rownames(ms.hipp.eset) %in% names(m2h), m2h[rownames(ms.hipp.eset)], rownames(ms.hipp.eset))
+
+#estimate proportions
+library(xbioc)
+
+cell.est <- music_prop(bulk.eset= hmn.prog.eset, sc.eset=ms.hipp.eset,
+                       clusters='cellType', samples='SubjectName',
+                       select.ct=c('2','3','4','5','6','7','8'), verbose=T)
+head(cell.est$Est.prop.weighted)
+
+
+test <- cell.est$Est.prop.weighted %>% data.frame
+test$time <- gsub('.*_D','',rownames(test))
+test$treat <- gsub('_.*','',rownames(test))
+
+library(ggplot2)
+ggplot(data=test, aes(x=time, y=X8, group=treat)) +
+  geom_line(aes(col=treat))
+
+ggplot(data=test, aes(x=time, y=X5, group=treat)) +
+  geom_line(aes(col=treat))
 
 ```
