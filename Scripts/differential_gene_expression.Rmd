@@ -894,24 +894,46 @@ m2h <- m2h[m2h!='PISD'] #AHHH there is a Pisd and PISD in original, remove Psid 
 
 rownames(ms.hipp.eset) <- ifelse(rownames(ms.hipp.eset) %in% names(m2h), m2h[rownames(ms.hipp.eset)], rownames(ms.hipp.eset))
 
+#name clusters more informative
+clust.names <- c('endothelial','microglia','oligodendrocytes','pericytes','astrocytes','oligo progenitor','choroid plexus','pericytes','neurons','microglia','oligodendrocytes','fibroblasts')
+names(clust.names) <- c('0','1','2','3','4','5','6','7','8','9','10','11')
+table(ms.hipp.eset$cellType)
+table(clust.names[ms.hipp.eset$cellType])
+ms.hipp.eset$cellType <- clust.names[ms.hipp.eset$cellType]
+
 #estimate proportions
 library(xbioc)
 
 cell.est <- music_prop(bulk.eset= hmn.prog.eset, sc.eset=ms.hipp.eset,
                        clusters='cellType', samples='SubjectName',
-                       select.ct=c('2','3','4','5','6','7','8'), verbose=T)
+                       #select.ct=NULL)
+                       select.ct=c('oligodendrocytes','pericytes','astrocytes','neurons','oligo progenitor'))
 head(cell.est$Est.prop.weighted)
 
 
 test <- cell.est$Est.prop.weighted %>% data.frame
-test$time <- gsub('.*_D','',rownames(test))
+test$time <- gsub('.*_D','',rownames(test)) %>% as.numeric
 test$treat <- gsub('_.*','',rownames(test))
 
 library(ggplot2)
-ggplot(data=test, aes(x=time, y=X8, group=treat)) +
+ggplot(data=test, aes(x=time, y=neurons, group=treat)) +
   geom_line(aes(col=treat))
 
-ggplot(data=test, aes(x=time, y=X5, group=treat)) +
+ggplot(data=test, aes(x=time, y=oligo.progenitor, group=treat)) +
   geom_line(aes(col=treat))
 
+
+pdf('C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/MuSiC predictions.pdf')
+  ggplot(data=test, aes(x=time, y=neurons, group=treat)) +
+  geom_line(aes(col=treat)) + ylim(c(0,1))
+
+  ggplot(data=test, aes(x=time, y=oligo.progenitor, group=treat)) +
+  geom_line(aes(col=treat)) + ylim(c(0,1))
+  
+  ggplot(data=test, aes(x=time, y=pericytes, group=treat)) +
+  geom_line(aes(col=treat)) + ylim(c(0,1))
+  
+  ggplot(data=test, aes(x=time, y=astrocytes, group=treat)) +
+  geom_line(aes(col=treat)) + ylim(c(0,1))
+dev.off()
 ```
