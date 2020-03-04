@@ -466,8 +466,8 @@ clust0.res <- clust0.res[match(rownames(clust1.res),rownames(clust0.res)),]
 
 
 
-text.size <- 12
-text.size.leg <- 16
+text.size <- 14
+text.size.leg <- 18
 point.size <- 0.2
 
 #tSNE by Pb
@@ -480,32 +480,33 @@ f3b <- ggplot(updown, aes(x=clust,y=ngene,fill=reg)) +
   labs(fill='Expression with Lead',
        x='Cell Cluster',
        y='N Genes with p-value < 0.05') + 
-  guides(fill= guide_legend(reverse=T)) +
-  theme(legend.position='top') +
+  guides(fill= guide_legend(reverse=T)) + theme_bw() + 
+  theme(legend.position='top', axis.text=element_text(size=text.size), axis.title=element_text(size=text.size), 
+        legend.text=element_text(size=text.size.leg), legend.title=element_text(size=text.size.leg)) +
   scale_fill_manual(values=c("firebrick3","royalblue4"))
 
 #volcano cluster 1
-f3c <- EnhancedVolcano(clust1.res, 
-                lab=rownames(clust1.res), 
-                selectLab=c('Hbb-bs','Gm42726','Kif5a'),
-                title='',
-                subtitle='',
-                x='logFC', 
-                xlim=c(-1,1),
-                y='FDR',
-                pCutoff = 0.05,
-                FCcutoff = 0.5,
-                ylab = bquote(~-Log[10]~adjusted~italic(P)),
-                transcriptLabSize = 4.5,
-                transcriptPointSize = 1.4,
-                transcriptLabvjust=0.1,
-                transcriptLabhjust=-0.1,
-                #drawConnectors = T,
-                #boxedlabels = T,
-                colAlpha = 1,
-                legendVisible = F,
-                caption="") +
-  theme(plot.margin = margin(-10,4,0,2))
+# f3c <- EnhancedVolcano(clust1.res, 
+#                 lab=rownames(clust1.res), 
+#                 selectLab=c('Hbb-bs','Gm42726','Kif5a'),
+#                 title='',
+#                 subtitle='',
+#                 x='logFC', 
+#                 xlim=c(-1,1),
+#                 y='FDR',
+#                 pCutoff = 0.05,
+#                 FCcutoff = 0.5,
+#                 ylab = bquote(~-Log[10]~adjusted~italic(P)),
+#                 transcriptLabSize = 4.5,
+#                 transcriptPointSize = 1.4,
+#                 transcriptLabvjust=0.1,
+#                 transcriptLabhjust=-0.1,
+#                 #drawConnectors = T,
+#                 #boxedlabels = T,
+#                 colAlpha = 1,
+#                 legendVisible = F,
+#                 caption="") +
+#   theme(plot.margin = margin(-10,4,0,2))
 
 #vln Gm42726
 f3d <- VlnPlot(All, features = "Gm42726", point.size.use=point.size, group.by = 'Treat') + 
@@ -521,6 +522,7 @@ f3e <- VlnPlot(All, features = "Hbb-bs", point.size.use=point.size, group.by = '
 #upset of nominal genes
 f3g <- upset(fromList(gene.lists),sets=c('cluster 0','cluster 1','cluster 2','cluster 3','cluster 4',
                                   'cluster 5','cluster 7','cluster 8','cluster 9'),
+             set_size.show = FALSE, mainbar.y.label = "Number of Genes", 
       order.by='freq',keep.order=T,nintersects=35, text.scale=c(3, 2, 1.8, 2, 1.85, 1.3)) #c(intersection size title, intersection size tick labels, set size title, set size tick labels, set names, numbers above bars)
 f3g #hackish way to get upset to play along
 grid.edit('arrange',name='arrange2')
@@ -543,12 +545,12 @@ f3f <- ggplot(f3f.df,aes(x=cl0, y=cl1, col=d)) +
   theme_bw() +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
         axis.text=element_text(size=text.size), axis.title=element_text(size=text.size)) +
-  xlab("Cluster 0 LogFC Estimates") + ylab("Cluster 1 LogFC Estimates") +
+  xlab("Epithelial Lead Effect") + ylab("Microglia Lead Effect") +
   annotate("text", x=-0.6, y=0.7, label=paste0('r=',round(cor(clust0.res$logFC,clust1.res$logFC,method='spearman'),2)), size=text.size-8)
   
 
-fig3_plots <- list(f3a, f3b, f3c, f3d, f3e, f3f, f3g_grob)
-fig3_label <- list("A.", "B.", "C.", "D.", "E.", "F.", "G.")
+fig3_plots <- list(f3a, f3b, f3d, f3e, f3f, f3g_grob)
+fig3_label <- list("A.", "B.", "C.", "D.", "E.", "F.")
 fig3_plots <- lapply(1:length(fig3_plots), FUN = function(i){
   arrangeGrob(fig3_plots[[i]], top = textGrob(fig3_label[[i]], x= unit(0, "npc")
                                 ,y= unit(1, "npc"), just= c("left","top"),
@@ -556,11 +558,11 @@ fig3_plots <- lapply(1:length(fig3_plots), FUN = function(i){
 })
 
 tiff("Figure_3_DE_clust.tif", height=14, width=10, units="in", res=300)
-grid.arrange(fig3_plots[[1]], fig3_plots[[2]], fig3_plots[[3]], fig3_plots[[4]], fig3_plots[[5]], fig3_plots[[6]], fig3_plots[[7]],
+grid.arrange(fig3_plots[[1]], fig3_plots[[2]], fig3_plots[[3]], fig3_plots[[4]], fig3_plots[[5]], fig3_plots[[6]],
              heights = c(1,1,1.6),
-             layout_matrix=rbind(c(1,2,3),
-                                 c(4,5,6),
-                                 c(7,7,7)))
+             layout_matrix=rbind(c(1,1,1,2,2,2),
+                                 c(3,3,4,4,5,5),
+                                 c(7,7,7,7,7,7)))
 dev.off()
 
 
@@ -855,6 +857,7 @@ library(Seurat)
 library(Biobase)
 
 ### bulk human progenitor neuron data - prepare in ExpressionSet
+#Jiang P. 2017. RNA-Seq of Human Neural Progenitor Cells Exposed to Lead (Pb) Reveals Transcriptome Dynamics, Splicing Alterations and Disease Risk Associations 
 hmn.prog <- read.table("C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/HumanNeuroProg/ExpectCounts_all_samples.txt", header=T)
 hmn.prog.matrix <- as.matrix(hmn.prog[,-c(1,2)])
 rownames(hmn.prog.matrix) <- hmn.prog$Gene.ID
@@ -867,47 +870,96 @@ hmn.prog.pd <- AnnotatedDataFrame(hmn.prog.pd)
 hmn.prog.eset <- ExpressionSet(assayData=hmn.prog.matrix, phenoData=hmn.prog.pd)
 
 
-#### single cell mouse hipp data
-load('C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/clustered-all.rda')
+#### denate gyrus neurogenesis dataset
+#Hochgerner, H., Zeisel, A., Lönnerberg, P. et al. Conserved properties of dentate gyrus neurogenesis across postnatal development revealed by single-cell RNA sequencing. Nat Neurosci 21, 290–299 (2018). 
+neu.ref <- read.table("C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/HumanNeuroProg/GSE95315_10X_expression_data_v2.tab", header=T)
+neu.ref <- t(neu.ref)
+colnames(neu.ref) <- neu.ref[1,]
+neu.ref <- neu.ref[-1,]
+clusters <- as.character(neu.ref[,2])
 
-ms.hipp.eset <- SeuratToExpressionSet(All, delimiter='_', position=1, version='v3')
+neu.ref.matrix <- as.matrix(neu.ref[,-c(1,2)])
+storage.mode(neu.ref.matrix) <- "numeric"
+neu.ref.matrix <- t(neu.ref.matrix)
+
+neu.ref.pd <- data.frame(pool=gsub('_.*','',rownames(neu.ref)),
+                         age=neu.ref[,1],
+                         cluster=clusters)
+identical(rownames(neu.ref.pd), colnames(neu.ref.matrix))
+neu.ref.pd <- AnnotatedDataFrame(neu.ref.pd)
+
+neu.ref.eset <- ExpressionSet(assayData=neu.ref.matrix, phenoData=neu.ref.pd)
 
 library(biomaRt)
 human = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
 mouse = useMart("ensembl", dataset = "mmusculus_gene_ensembl")
- 
-genes.human = getLDS(attributes = c("mgi_symbol"), filters = "mgi_symbol", values = rownames(ms.hipp.eset) , mart = mouse, attributesL = c("hgnc_symbol"), martL = human, uniqueRows=T)
-table(rownames(ms.hipp.eset) %in% genes.human$MGI.symbol)
+
+genes.human = getLDS(attributes = c("mgi_symbol"), filters = "mgi_symbol", values = rownames(neu.ref.eset) , mart = mouse, attributesL = c("hgnc_symbol"), martL = human, uniqueRows=T)
+table(rownames(neu.ref.eset) %in% genes.human$MGI.symbol)
 
 #for now, dumping genes that are non-uniquely matching that don't have a gene symbol that is same (i.e. ones not like Rln1 and RLN1)
 library(dplyr)
 genes.human.uni <- genes.human %>% group_by(MGI.symbol) %>% filter(n()==1)
 genes.human.nonuni <- genes.human %>% group_by(MGI.symbol) %>% filter(n()>1)
-genes.human.unipick <- genes.human.nonuni %>% group_by(MGI.symbol) %>% filter(toupper(MGI.symbol)==HGNC.symbol) 
-table(unique(genes.human.nonuni$MGI.symbol) %in% genes.human.unipick$MGI.symbol) 
+genes.human.unipick <- genes.human.nonuni %>% group_by(MGI.symbol) %>% filter(toupper(MGI.symbol)==HGNC.symbol)
+table(unique(genes.human.nonuni$MGI.symbol) %in% genes.human.unipick$MGI.symbol)
 
 mouse.to.human <- rbind(genes.human.unipick, genes.human.uni) %>% data.frame
 m2h <- mouse.to.human$HGNC.symbol
-names(m2h) <- mouse.to.human$MGI.symbol 
+names(m2h) <- mouse.to.human$MGI.symbol
 m2h <- m2h[!duplicated(m2h)] #have to get rid of non-unique human for rownames to work....
 m2h <- m2h[m2h!='PISD'] #AHHH there is a Pisd and PISD in original, remove Psid to stop dup rowname
 
-rownames(ms.hipp.eset) <- ifelse(rownames(ms.hipp.eset) %in% names(m2h), m2h[rownames(ms.hipp.eset)], rownames(ms.hipp.eset))
+rownames(neu.ref.eset) <- ifelse(rownames(neu.ref.eset) %in% names(m2h), m2h[rownames(neu.ref.eset)], rownames(neu.ref.eset))
 
-#name clusters more informative
-clust.names <- c('endothelial','microglia','oligodendrocytes','pericytes','astrocytes','oligo progenitor','choroid plexus','pericytes','neurons','microglia','oligodendrocytes','fibroblasts')
-names(clust.names) <- c('0','1','2','3','4','5','6','7','8','9','10','11')
-table(ms.hipp.eset$cellType)
-table(clust.names[ms.hipp.eset$cellType])
-ms.hipp.eset$cellType <- clust.names[ms.hipp.eset$cellType]
+
+#### single cell mouse hipp data
+
+# load('C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/clustered-all.rda')
+# 
+# ms.hipp.eset <- SeuratToExpressionSet(All, delimiter='_', position=1, version='v3')
+# 
+# library(biomaRt)
+# human = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+# mouse = useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+#  
+# genes.human = getLDS(attributes = c("mgi_symbol"), filters = "mgi_symbol", values = rownames(ms.hipp.eset) , mart = mouse, attributesL = c("hgnc_symbol"), martL = human, uniqueRows=T)
+# table(rownames(ms.hipp.eset) %in% genes.human$MGI.symbol)
+# 
+# #for now, dumping genes that are non-uniquely matching that don't have a gene symbol that is same (i.e. ones not like Rln1 and RLN1)
+# library(dplyr)
+# genes.human.uni <- genes.human %>% group_by(MGI.symbol) %>% filter(n()==1)
+# genes.human.nonuni <- genes.human %>% group_by(MGI.symbol) %>% filter(n()>1)
+# genes.human.unipick <- genes.human.nonuni %>% group_by(MGI.symbol) %>% filter(toupper(MGI.symbol)==HGNC.symbol) 
+# table(unique(genes.human.nonuni$MGI.symbol) %in% genes.human.unipick$MGI.symbol) 
+# 
+# mouse.to.human <- rbind(genes.human.unipick, genes.human.uni) %>% data.frame
+# m2h <- mouse.to.human$HGNC.symbol
+# names(m2h) <- mouse.to.human$MGI.symbol 
+# m2h <- m2h[!duplicated(m2h)] #have to get rid of non-unique human for rownames to work....
+# m2h <- m2h[m2h!='PISD'] #AHHH there is a Pisd and PISD in original, remove Psid to stop dup rowname
+# 
+# rownames(ms.hipp.eset) <- ifelse(rownames(ms.hipp.eset) %in% names(m2h), m2h[rownames(ms.hipp.eset)], rownames(ms.hipp.eset))
+# 
+# #name clusters more informative
+# clust.names <- c('endothelial','microglia','oligodendrocytes','pericytes','astrocytes','oligo progenitor','choroid plexus','pericytes','neurons','microglia','oligodendrocytes','fibroblasts')
+# names(clust.names) <- c('0','1','2','3','4','5','6','7','8','9','10','11')
+# table(ms.hipp.eset$cellType)
+# table(clust.names[ms.hipp.eset$cellType])
+# ms.hipp.eset$cellType <- clust.names[ms.hipp.eset$cellType]
 
 #estimate proportions
 library(xbioc)
 
-cell.est <- music_prop(bulk.eset= hmn.prog.eset, sc.eset=ms.hipp.eset,
-                       clusters='cellType', samples='SubjectName',
-                       #select.ct=NULL)
-                       select.ct=c('oligodendrocytes','pericytes','astrocytes','neurons','oligo progenitor'))
+# cell.est <- music_prop(bulk.eset= hmn.prog.eset, sc.eset=ms.hipp.eset,
+#                        clusters='cellType', samples='SubjectName',
+#                        #select.ct=NULL)
+#                        select.ct=c('oligodendrocytes','pericytes','astrocytes','neurons','oligo progenitor'))
+cell.est <- music_prop(bulk.eset= hmn.prog.eset, sc.eset=neu.ref.eset,
+                       clusters='cluster', samples='pool',
+                       select.ct=NULL)
+                       #select.ct=c('oligodendrocytes','pericytes','astrocytes','neurons','oligo progenitor'))
+
 head(cell.est$Est.prop.weighted)
 
 
@@ -916,24 +968,155 @@ test$time <- gsub('.*_D','',rownames(test)) %>% as.numeric
 test$treat <- gsub('_.*','',rownames(test))
 
 library(ggplot2)
-ggplot(data=test, aes(x=time, y=neurons, group=treat)) +
-  geom_line(aes(col=treat))
 
-ggplot(data=test, aes(x=time, y=oligo.progenitor, group=treat)) +
-  geom_line(aes(col=treat))
+pdf('C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/MuSiC predictions 2.pdf')
 
+  ggplot(data=test, aes(x=time, y=NFOL, group=treat)) +
+    geom_line(aes(col=treat)) + ylim(c(0,1))
 
-pdf('C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/MuSiC predictions.pdf')
-  ggplot(data=test, aes(x=time, y=neurons, group=treat)) +
-  geom_line(aes(col=treat)) + ylim(c(0,1))
-
-  ggplot(data=test, aes(x=time, y=oligo.progenitor, group=treat)) +
+  ggplot(data=test, aes(x=time, y=OPC, group=treat)) +
   geom_line(aes(col=treat)) + ylim(c(0,1))
   
-  ggplot(data=test, aes(x=time, y=pericytes, group=treat)) +
+  ggplot(data=test, aes(x=time, y=nIPC, group=treat)) +
   geom_line(aes(col=treat)) + ylim(c(0,1))
   
-  ggplot(data=test, aes(x=time, y=astrocytes, group=treat)) +
+  ggplot(data=test, aes(x=time, y=Neuroblast_1, group=treat)) +
   geom_line(aes(col=treat)) + ylim(c(0,1))
+  
+  ggplot(data=test, aes(x=time, y=Pericytes, group=treat)) +
+  geom_line(aes(col=treat)) + ylim(c(0,1))
+  
+  ggplot(data=test, aes(x=time, y=Mossy.Adcyap1, group=treat)) +
+  geom_line(aes(col=treat)) + ylim(c(0,1))
+  
+  ggplot(data=test, aes(x=time, y=Mossy.Cyp26b1, group=treat)) +
+  geom_line(aes(col=treat)) + ylim(c(0,1))
+  
+  ggplot(data=test, aes(x=time, y=GABA.Cnr1, group=treat)) +
+  geom_line(aes(col=treat)) + ylim(c(0,1))
+
+  ggplot(data=test, aes(x=time, y=GABA.Lhx6, group=treat)) +
+  geom_line(aes(col=treat)) + ylim(c(0,1))
+  
+  ggplot(data=test, aes(x=time, y=Cajal.Retzius, group=treat)) +
+  geom_line(aes(col=treat)) + ylim(c(0,1))
+
 dev.off()
+
+
+
+p.opc <- ggplot(data=test, aes(x=time, y=OPC, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('Oligodendrocyte\nPrecursor') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.nipc <- ggplot(data=test, aes(x=time, y=nIPC, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('Neuronal\nIntermediate Progenitor') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.neub <- ggplot(data=test, aes(x=time, y=Neuroblast_1, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('Neuroblast') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.dummy <- ggplot(data=test, aes(x=time, y=Neuroblast_1, group=treat)) +
+  geom_line(aes(col=treat)) + labs(color='Treatment') + scale_color_discrete(labels=c('Control', 'Lead 5 μM', 'Lead 30 μM')) +
+  theme(legend.text=element_text(size=18), legend.title=element_text(size=18))
+p.predleg <- get_legend(p.dummy)
+
+# pb hipp as reference
+# pdf('C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/MuSiC predictions.pdf')
+#   ggplot(data=test, aes(x=time, y=neurons, group=treat)) +
+#   geom_line(aes(col=treat)) + ylim(c(0,1))
+# 
+#   ggplot(data=test, aes(x=time, y=oligo.progenitor, group=treat)) +
+#   geom_line(aes(col=treat)) + ylim(c(0,1))
+#   
+#   ggplot(data=test, aes(x=time, y=pericytes, group=treat)) +
+#   geom_line(aes(col=treat)) + ylim(c(0,1))
+#   
+#   ggplot(data=test, aes(x=time, y=astrocytes, group=treat)) +
+#   geom_line(aes(col=treat)) + ylim(c(0,1))
+# dev.off()
+
+
+
+
+### specific marker time course
+
+# using the TPM version for looking at individual genes
+gene.time <- hmn.prog.pd@data
+hmn.prog.matrix <- read.table("C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/HumanNeuroProg/TPM_all_samples.txt", header=T)
+rownames(hmn.prog.matrix) <- hmn.prog.matrix[,1]
+hmn.prog.matrix <- hmn.prog.matrix[,-c(1,2)]
+hmn.prog.matrix <- as.matrix(hmn.prog.matrix)
+
+gene.time$time <- gsub('D','',gene.time$time) %>% as.numeric()
+gene.time$OLIG1 <- hmn.prog.matrix['OLIG1',rownames(gene.time)]
+gene.time$OLIG2 <- hmn.prog.matrix['OLIG2',rownames(gene.time)]
+gene.time$OLIG3 <- hmn.prog.matrix['OLIG3',rownames(gene.time)]
+gene.time$MBP <- hmn.prog.matrix['MBP',rownames(gene.time)]
+
+gene.time$HAPLN2 <- hmn.prog.matrix['HAPLN2',rownames(gene.time)]
+gene.time$HBB <- hmn.prog.matrix['HBB',rownames(gene.time)]
+gene.time$KIF5A <- hmn.prog.matrix['KIF5A',rownames(gene.time)]
+gene.time$PTGDS <- hmn.prog.matrix['PTGDS',rownames(gene.time)]
+gene.time$CRYAB <- hmn.prog.matrix['CRYAB',rownames(gene.time)]
+
+ggplot(data=gene.time, aes(x=time, y=KIF5A, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') +
+  theme(axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+
+p.olig1 <- ggplot(data=gene.time, aes(x=time, y=OLIG1, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') +
+  ylab('OLIG1') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.olig2 <- ggplot(data=gene.time, aes(x=time, y=OLIG2, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') +
+  ylab('OLIG2') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.olig3 <- ggplot(data=gene.time, aes(x=time, y=OLIG3, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') +
+  ylab('OLIG3') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.mbp <- ggplot(data=gene.time, aes(x=time, y=MBP, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') +
+  ylab('MBP') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+
+# tiff("Figure_4_DE_clust.tif", height=8, width=12, units="in", res=300)
+# grid.arrange(fig4_plots[[1]], fig4_plots[[2]], fig4_plots[[3]], fig4_plots[[4]], legend,
+#              heights = c(2,1.1), widths=c(1,1,1,0.3),
+#              layout_matrix=rbind(c(1,1,1,1),
+#                                  c(2,3,4,5)))
+# dev.off()
+
+fig_pred_plots <- list(p.opc, p.nipc, p.neub, p.olig1, p.olig2, p.olig3, p.mbp)
+fig_pred_label <- list("A.", "B.", "C.", "D.", "E.", "F.", "G.")
+fig_pred_plots <- lapply(1:length(fig_pred_plots), FUN = function(i){
+  arrangeGrob(fig_pred_plots[[i]], top = textGrob(fig_pred_label[[i]], x= unit(0, "npc")
+                                ,y= unit(1, "npc"), just= c("left","top"),
+                                gp=gpar(col="black", fontsize=18)))
+})
+
+
+tiff("C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/Figure_4_DE_clust.tif", height=8, width=12, units="in", res=300)
+grid.arrange(fig_pred_plots[[1]], fig_pred_plots[[2]], fig_pred_plots[[3]],
+             p.predleg, fig_pred_plots[[4]], fig_pred_plots[[5]], 
+                        fig_pred_plots[[6]], fig_pred_plots[[7]],
+             heights = c(1.5,1,1),
+             widths = c(1/2, 1/3, 2/3, 1/6, 5/6),
+             layout_matrix=rbind(c(1,1,2,2,3),
+                                 c(4,5,5,6,6),
+                                 c(4,7,7,8,8)))
+dev.off()
+
+
 ```
