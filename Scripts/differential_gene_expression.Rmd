@@ -640,7 +640,7 @@ f3f <- ggplot(f3f.df,aes(x=cl0, y=cl1, col=d)) +
   theme_bw() +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
         axis.text=element_text(size=text.size), axis.title=element_text(size=text.size)) +
-  xlab("Epithelial Lead Effect") + ylab("Microglia Lead Effect") +
+  xlab("Lead Effect on \n Eplithelial Gene Expression") + ylab("Lead Effect on \n Microglia Gene Expression") +
   annotate("text", x=-0.6, y=0.7, label=paste0('r=',round(cor(clust0.res$logFC,clust1.res$logFC,method='spearman'),2)), size=text.size-8)
   
 
@@ -810,8 +810,8 @@ write.xlsx(LR.clust, file=file.path(tab.path,"LR_path_clust_specific.xlsx"))
 ```
 
 
-Figure 4
-```{r fig4}
+Figure 6
+```{r fig6}
 
 setwd("C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp")
 load('cluster_specific_pathway.RData')
@@ -873,6 +873,7 @@ text.size=14
 
 #upset plot of FDR significant pathways
 f4a <- upset(fromList(top.paths), sets=names(top.paths),
+             mainbar.y.label='Number of\nGene Set Pathways',
       order.by='freq',keep.order=T,nintersects = NA, text.scale=c(2, 1.6, 1.5, 1.7, 1.2, 1.2)) #c(intersection size title, intersection size tick labels, set size title, set size tick labels, set names, numbers above bars)
 f4a
 grid.edit('arrange',name='arrange2')
@@ -887,7 +888,7 @@ f4b <- ggplot(prot.fold.fc, aes(x=gene, y=logFC, fill=col)) +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.border = element_blank(),
         legend.position = "none", axis.text.x = element_blank(), axis.ticks.x = element_blank(),
         axis.line.y = element_line(), text=element_text(size=text.size), plot.title = element_text(size=text.size-2)) +
-  xlab("") + ylab("LogFC with Pb") + ggtitle("Cluster 1 (Microglia)\nProtein Folding Pathway") +
+  xlab("") + ylab("LogFC with Lead") + ggtitle("Cluster 1 (Microglia)\nProtein Folding Pathway") +
   scale_fill_manual(values=c("blue","red"))
 
 f4c <- ggplot(int12.fc, aes(x=gene, y=logFC, fill=col)) +
@@ -896,7 +897,7 @@ f4c <- ggplot(int12.fc, aes(x=gene, y=logFC, fill=col)) +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.border = element_blank(),
         legend.position = "none", axis.text.x = element_blank(), axis.ticks.x = element_blank(),
         axis.line.y = element_line(), text=element_text(size=text.size), plot.title = element_text(size=text.size-2)) +
-  xlab("") + ylab("LogFC with Pb") + ggtitle("Cluster 2 (Oligodendrocytes)\nInterleukin-12 Biosynthetic Process") +
+  xlab("") + ylab("LogFC with Lead") + ggtitle("Cluster 2 (Oligodendrocytes)\nInterleukin-12 Biosynthetic Process") +
   scale_fill_manual(values=c("blue","red"))
 
 f4d <- ggplot(DNArep.fc, aes(x=gene, y=logFC, fill=col)) +
@@ -905,7 +906,7 @@ f4d <- ggplot(DNArep.fc, aes(x=gene, y=logFC, fill=col)) +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.border = element_blank(),
         legend.position = "none", axis.text.x = element_blank(), axis.ticks.x = element_blank(),
         axis.line.y = element_line(), text=element_text(size=text.size), plot.title = element_text(size=text.size-2)) +
-  xlab("") + ylab("LogFC with Pb") + ggtitle("Cluster 7 (Pericytes)\nDouble-Strand Break Repair") +
+  xlab("") + ylab("LogFC with Lead") + ggtitle("Cluster 7 (Pericytes)\nDouble-Strand Break Repair") +
   scale_fill_manual(values=c("blue","red"))
 
 fig4_plots <- list(f4a_grob, f4b, f4c, f4d)
@@ -923,7 +924,7 @@ dummy <- ggplot(DNArep.fc, aes(x=gene, y=logFC, fill=col)) +
 legend <- get_legend(dummy)
 
 
-tiff("Figure_4_DE_clust.tif", height=8, width=12, units="in", res=300)
+tiff("Figure_6_DE_clust.tif", height=8, width=12, units="in", res=300)
 grid.arrange(fig4_plots[[1]], fig4_plots[[2]], fig4_plots[[3]], fig4_plots[[4]], legend,
              heights = c(2,1.1), widths=c(1,1,1,0.3),
              layout_matrix=rbind(c(1,1,1,1),
@@ -932,7 +933,7 @@ dev.off()
 
 
 
-pdf("Figure_4_DE_clust.pdf", height=8, width=12)
+pdf("Figure_6_DE_clust.pdf", height=8, width=12)
 grid.arrange(fig4_plots[[1]], fig4_plots[[2]], fig4_plots[[3]], fig4_plots[[4]], legend,
              heights = c(2,1.1), widths=c(1,1,1,0.3),
              layout_matrix=rbind(c(1,1,1,1),
