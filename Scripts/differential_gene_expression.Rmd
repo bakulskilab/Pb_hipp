@@ -395,6 +395,101 @@ for(i in 1:length(cluster.specific)){
   }
 }
 
+
+### modifications to specific ones
+res <- topTags(cluster.specific[[1]],n=nrow(cluster.specific[[1]]))$table
+minFDR <- which(abs(res$FDR-0.05)==min(abs(res$FDR-0.05)))
+minFDR <- minFDR[length(minFDR)]
+pcut <- ifelse(res$FDR[1]>0.05,
+             res$PValue[1],
+             1.02*res$PValue[minFDR])
+volcano[['Clust0']] <- EnhancedVolcano(res, 
+                lab=rownames(res), 
+                selectLab = c('Hbb-bs','Gm42726','Ermn'),
+                title='Cluster 0',
+                subtitle=clust.names[1],
+                x='logFC', 
+                xlim=c(-2,2),
+                y='PValue',
+                pCutoff = pcut,
+                FCcutoff = 0.5,
+                xlab = if(i==9){bquote(~Log[2]~ "fold change")}else{""},
+                ylab = if(i==4){bquote(~-Log[10]~italic(P))}else{""},
+                transcriptLabSize = 4.2,
+                transcriptPointSize = 1.8,
+                transcriptLabhjust = c(1.1,1.1,-0.2),
+                transcriptLabvjust = 0.3,
+                #drawConnectors = T,
+                #boxedlabels = T,
+                colAlpha = 1,
+                legendPosition='top',
+                caption="",
+                legendVisible = F) +
+      theme(plot.margin=unit(c(0,0,0,0),'cm'))
+
+res <- topTags(cluster.specific[[2]],n=nrow(cluster.specific[[2]]))$table
+minFDR <- which(abs(res$FDR-0.05)==min(abs(res$FDR-0.05)))
+minFDR <- minFDR[length(minFDR)]
+pcut <- ifelse(res$FDR[1]>0.05,
+             res$PValue[1],
+             1.02*res$PValue[minFDR])
+volcano[['Clust1']] <- EnhancedVolcano(res, 
+                lab=rownames(res), 
+                selectLab = c('Hbb-bs','Gm42726','Kif5a','Hspa1b','Hapln2'),
+                title='Cluster 1',
+                subtitle=clust.names[2],
+                x='logFC', 
+                xlim=c(-2,2),
+                y='PValue',
+                pCutoff = pcut,
+                FCcutoff = 0.5,
+                xlab = if(i==9){bquote(~Log[2]~ "fold change")}else{""},
+                ylab = if(i==4){bquote(~-Log[10]~italic(P))}else{""},
+                transcriptLabSize = 4.2,
+                transcriptPointSize = 1.8,
+                transcriptLabhjust = -0.1,
+                transcriptLabvjust = 0.3,
+                drawConnectors = T,
+                #boxedlabels = T,
+                colAlpha = 1,
+                legendPosition='top',
+                caption="",
+                legendVisible = F) +
+      theme(plot.margin=unit(c(0,0,0,0),'cm'))
+
+res <- topTags(cluster.specific[[5]],n=nrow(cluster.specific[[5]]))$table
+minFDR <- which(abs(res$FDR-0.05)==min(abs(res$FDR-0.05)))
+minFDR <- minFDR[length(minFDR)]
+pcut <- ifelse(res$FDR[1]>0.05,
+             res$PValue[1],
+             1.02*res$PValue[minFDR])
+volcano[['Clust4']] <- EnhancedVolcano(res, 
+                lab=rownames(res), 
+                selectLab = c('Tardbp','Extl1'),
+                title='Cluster 4',
+                subtitle=clust.names[5],
+                x='logFC', 
+                xlim=c(-2,2),
+                y='PValue',
+                pCutoff = pcut,
+                FCcutoff = 0.5,
+                xlab = if(i==9){bquote(~Log[2]~ "fold change")}else{""},
+                ylab = if(i==4){bquote(~-Log[10]~italic(P))}else{""},
+                transcriptLabSize = 4.2,
+                transcriptPointSize = 1.8,
+                #transcriptLabhjust = -0.2,
+                #transcriptLabvjust = 0.3,
+                drawConnectors = T,
+                colConnectors = rgb(0, 0, 255, max = 255, alpha = 0),
+                lengthConnectors = unit(0,'npc'),
+                #boxedlabels = T,
+                colAlpha = 1,
+                legendPosition='top',
+                caption="",
+                legendVisible = F) +
+      theme(plot.margin=unit(c(0,0,0,0),'cm'))
+
+### Supplementary Figure 7
 tiff('cluster_specific_volcano_grid.tiff',height=10,width=10,units='in',res=300)
   grid.arrange(grobs=volcano,
                ncol=3)
