@@ -489,12 +489,16 @@ volcano[['Clust4']] <- EnhancedVolcano(res,
                 legendVisible = F) +
       theme(plot.margin=unit(c(0,0,0,0),'cm'))
 
-### Supplementary Figure 7
-tiff('cluster_specific_volcano_grid.tiff',height=10,width=10,units='in',res=300)
+### Figure 5
+tiff('Figure_5_Volcano.tiff',height=10,width=10,units='in',res=300)
   grid.arrange(grobs=volcano,
                ncol=3)
 dev.off()
 
+pdf('Figure_5_Volcano.pdf',height=10,width=10)
+  grid.arrange(grobs=volcano,
+               ncol=3)
+dev.off()
 
 ```
 
@@ -615,10 +619,17 @@ f3e <- VlnPlot(All, features = "Hbb-bs", point.size.use=point.size, group.by = '
         axis.title.x=element_blank(), axis.text=element_text(size=text.size))
 
 #upset of nominal genes
+names(gene.lists) <- c('Endothelial (0)','Microglia (1)','Oligodendrocyte (2)','Pericytes (3)','Astrocytes (4)',
+                                  'Oligodendrocyte Progenitor (5)','Pericytes (7)','Neurons (8)','Microglia (9)')
+f3g <- upset(fromList(gene.lists),sets=c('Endothelial (0)','Microglia (1)','Oligodendrocyte (2)','Pericytes (3)','Astrocytes (4)',
+                                  'Oligodendrocyte Progenitor (5)','Pericytes (7)','Neurons (8)','Microglia (9)'),
+             set_size.show = FALSE, mainbar.y.label = "Number of Genes", 
+      order.by='freq',keep.order=T,nintersects=35, text.scale=c(3, 2, 1.8, 2, 1.85, 1.3)) #c(intersection size title, intersection size tick labels, set size 
+
 f3g <- upset(fromList(gene.lists),sets=c('cluster 0','cluster 1','cluster 2','cluster 3','cluster 4',
                                   'cluster 5','cluster 7','cluster 8','cluster 9'),
              set_size.show = FALSE, mainbar.y.label = "Number of Genes", 
-      order.by='freq',keep.order=T,nintersects=35, text.scale=c(3, 2, 1.8, 2, 1.85, 1.3)) #c(intersection size title, intersection size tick labels, set size title, set size tick labels, set names, numbers above bars)
+      order.by='freq',keep.order=T,nintersects=35, text.scale=c(3, 2, 1.8, 2, 1.65, 1.3)) #c(intersection size title, intersection size tick labels, set size title, set size tick labels, set names, numbers above bars)
 f3g #hackish way to get upset to play along
 grid.edit('arrange',name='arrange2')
 f3g_grob <- grid.grab()
@@ -663,11 +674,11 @@ dev.off()
 
 
 pdf("Figure_3_DE_clust.pdf", height=14, width=10)
-grid.arrange(fig3_plots[[1]], fig3_plots[[2]], fig3_plots[[3]], fig3_plots[[4]], fig3_plots[[5]], fig3_plots[[6]], fig3_plots[[7]],
+grid.arrange(fig3_plots[[1]], fig3_plots[[2]], fig3_plots[[3]], fig3_plots[[4]], fig3_plots[[5]], fig3_plots[[6]],
              heights = c(1,1,1.6),
-             layout_matrix=rbind(c(1,2,3),
-                                 c(4,5,6),
-                                 c(7,7,7)))
+             layout_matrix=rbind(c(1,1,1,2,2,2),
+                                 c(3,3,4,4,5,5),
+                                 c(7,7,7,7,7,7)))
 dev.off()
 
 
@@ -924,7 +935,7 @@ dummy <- ggplot(DNArep.fc, aes(x=gene, y=logFC, fill=col)) +
 legend <- get_legend(dummy)
 
 
-tiff("Figure_6_DE_clust.tif", height=8, width=12, units="in", res=300)
+tiff("Figure_6_Path.tif", height=8, width=12, units="in", res=300)
 grid.arrange(fig4_plots[[1]], fig4_plots[[2]], fig4_plots[[3]], fig4_plots[[4]], legend,
              heights = c(2,1.1), widths=c(1,1,1,0.3),
              layout_matrix=rbind(c(1,1,1,1),
@@ -933,7 +944,7 @@ dev.off()
 
 
 
-pdf("Figure_6_DE_clust.pdf", height=8, width=12)
+pdf("Figure_6_Path.pdf", height=8, width=12)
 grid.arrange(fig4_plots[[1]], fig4_plots[[2]], fig4_plots[[3]], fig4_plots[[4]], legend,
              heights = c(2,1.1), widths=c(1,1,1,0.3),
              layout_matrix=rbind(c(1,1,1,1),
@@ -1187,13 +1198,6 @@ p.mbp <- ggplot(data=gene.time, aes(x=time, y=MBP, group=treat)) +
   ylab('MBP') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
 
 
-# tiff("Figure_4_DE_clust.tif", height=8, width=12, units="in", res=300)
-# grid.arrange(fig4_plots[[1]], fig4_plots[[2]], fig4_plots[[3]], fig4_plots[[4]], legend,
-#              heights = c(2,1.1), widths=c(1,1,1,0.3),
-#              layout_matrix=rbind(c(1,1,1,1),
-#                                  c(2,3,4,5)))
-# dev.off()
-
 fig_pred_plots <- list(p.opc, p.nipc, p.neub, p.olig1, p.olig2, p.olig3, p.mbp)
 fig_pred_label <- list("A.", "B.", "C.", "D.", "E.", "F.", "G.")
 fig_pred_plots <- lapply(1:length(fig_pred_plots), FUN = function(i){
@@ -1203,7 +1207,10 @@ fig_pred_plots <- lapply(1:length(fig_pred_plots), FUN = function(i){
 })
 
 
-tiff("C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/Figure_4_DE_clust.tif", height=8, width=12, units="in", res=300)
+
+### Figure 4
+
+tiff("C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/Figure_4_MuSiC.tif", height=8, width=12, units="in", res=300)
 grid.arrange(fig_pred_plots[[1]], fig_pred_plots[[2]], fig_pred_plots[[3]],
              p.predleg, fig_pred_plots[[4]], fig_pred_plots[[5]], 
                         fig_pred_plots[[6]], fig_pred_plots[[7]],
@@ -1212,6 +1219,113 @@ grid.arrange(fig_pred_plots[[1]], fig_pred_plots[[2]], fig_pred_plots[[3]],
              layout_matrix=rbind(c(1,1,2,2,3),
                                  c(4,5,5,6,6),
                                  c(4,7,7,8,8)))
+dev.off()
+
+pdf("C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/Figure_4_MuSiC.pdf", height=8, width=12)
+grid.arrange(fig_pred_plots[[1]], fig_pred_plots[[2]], fig_pred_plots[[3]],
+             p.predleg, fig_pred_plots[[4]], fig_pred_plots[[5]], 
+                        fig_pred_plots[[6]], fig_pred_plots[[7]],
+             heights = c(1.5,1,1),
+             widths = c(1/2, 1/3, 2/3, 1/6, 5/6),
+             layout_matrix=rbind(c(1,1,2,2,3),
+                                 c(4,5,5,6,6),
+                                 c(4,7,7,8,8)))
+dev.off()
+
+
+
+### supplementary other cell prop predictions
+
+p.end <- ggplot(data=test, aes(x=time, y=Endothelial, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('\nEndothelial') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.vlcm <- ggplot(data=test, aes(x=time, y=VLMC, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('Vascular and\nLeptomeningeal') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.mcr <- ggplot(data=test, aes(x=time, y=Microglia, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('\nMicroglia') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.pvm <- ggplot(data=test, aes(x=time, y=PVM, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('Perivascular\nMacrophage') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.ol <- ggplot(data=test, aes(x=time, y=OL, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('\nOligodendrocyte') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.ast <- ggplot(data=test, aes(x=time, y=Astrocytes, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('\nAstrocytes') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.rgl <- ggplot(data=test, aes(x=time, y=Radial_Glia.like, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('\nRadial Glia-like') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.neub2 <- ggplot(data=test, aes(x=time, y=Neuroblast_2, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('\nNeuroblast_2') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.grni <- ggplot(data=test, aes(x=time, y=Granule.immature, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('Neuron\n(Granule-immature)') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.grnm <- ggplot(data=test, aes(x=time, y=Granule.mature, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('Neuron\n(Granule-mature)') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.mcyp <- ggplot(data=test, aes(x=time, y=Mossy.Cyp26b1, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('Neuron\n(Mossy-Cyp26b1)') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.madc <- ggplot(data=test, aes(x=time, y=Mossy.Adcyap1, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('Neuron\n(Mossy-Adcyap1)') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.mklk <- ggplot(data=test, aes(x=time, y=Mossy.Klk8, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('Neuron\n(Mossy-Klk8)') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.gabac <- ggplot(data=test, aes(x=time, y=GABA.Cnr1, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('Neuron\n(GABA-Cnr1)') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.gabal <- ggplot(data=test, aes(x=time, y=GABA.Lhx6, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('Neuron\n(GABA-Lhx6)') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+p.cr <- ggplot(data=test, aes(x=time, y=Cajal.Retzius, group=treat)) +
+  geom_line(aes(col=treat), size=1.3) +
+  theme_bw() + xlab('Days') + ylim(c(0,1)) +
+  ylab('Neuron\n(Cajal-Retzius)') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+
+tiff('MuSiC other cell types.tif', width=12, height=8, units='in', res=300)
+grid.arrange(p.predleg,
+             p.end, p.vlcm, p.mcr, p.pvm,
+             p.ol, p.ast, p.rgl, p.neub2,
+             p.grni, p.grnm, p.mcyp, p.madc,
+             p.mklk, p.gabac, p.gabal, m.cr,
+             layout_matrix=rbind(c(1,2,3,4,5),
+                                 c(1,6,7,8,9),
+                                 c(1,10,11,12,13),
+                                 c(1,14,15,16,17)))
 dev.off()
 
 
