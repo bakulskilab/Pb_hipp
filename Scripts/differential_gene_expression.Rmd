@@ -312,9 +312,9 @@ for(i in 1:length(cluster.specific)){
   if(!is.null(res)){
     res.top <- topTags(res,n=nrow(res))$table
     res.top$gene <- rownames(res.top)
-    res.top$clust <- i-1
-    res.fmt <- res.top[,c('clust','gene','logCPM','logFC','PValue','FDR')]
+    res.fmt <- res.top[,c('gene','logCPM','logFC','PValue','FDR')]
     rownames(res.fmt) <- NULL
+    colnames(res.fmt) <- c('Gene', 'Log Counts Per Million', 'Lead Effect Estimate (Log Fold Change)','P-Value','False Discovery Rate')
     clust.full[[paste0('clust',i-1)]] <- res.fmt
   }
 }
@@ -502,6 +502,234 @@ dev.off()
 
 ```
 
+Modifications of upsetR functions
+```{r upsetr}
+Make_main_bar <- function(Main_bar_data, Q, show_num, ratios, customQ, number_angles,
+                          ebar, ylabel, ymax, scale_intersections, text_scale, attribute_plots){
+
+  bottom_margin <- (-1)*0.65
+
+  if(is.null(attribute_plots) == FALSE){
+    bottom_margin <- (-1)*0.45
+  }
+  
+  if(length(text_scale) > 1 && length(text_scale) <= 6){
+    y_axis_title_scale <- text_scale[1]
+    y_axis_tick_label_scale <- text_scale[2]
+    intersection_size_number_scale <- text_scale[6]
+  }
+  else{
+    y_axis_title_scale <- text_scale
+    y_axis_tick_label_scale <- text_scale
+    intersection_size_number_scale <- text_scale
+  }
+  
+  if(is.null(Q) == F){
+    inter_data <- Q
+    if(nrow(inter_data) != 0){
+      inter_data <- inter_data[order(inter_data$x), ]
+    }
+    else{inter_data <- NULL}
+  }
+  else{inter_data <- NULL}
+  
+  if(is.null(ebar) == F){
+    elem_data <- ebar
+    if(nrow(elem_data) != 0){
+      elem_data <- elem_data[order(elem_data$x), ]
+    }
+    else{elem_data <- NULL}
+  }
+  else{elem_data <- NULL}
+  
+  #ten_perc creates appropriate space above highest bar so number doesnt get cut off
+  if(is.null(ymax) == T){
+  ten_perc <- ((max(Main_bar_data$freq)) * 0.1)
+  ymax <- max(Main_bar_data$freq) + ten_perc
+  }
+  
+  if(ylabel == "Intersection Size" && scale_intersections != "identity"){
+    ylabel <- paste("Intersection Size", paste0("( ", scale_intersections, " )"))
+  }
+  if(scale_intersections == "log2"){
+    Main_bar_data$freq <- round(log2(Main_bar_data$freq), 2)
+    ymax <- log2(ymax)
+  }
+  if(scale_intersections == "log10"){
+    Main_bar_data$freq <- round(log10(Main_bar_data$freq), 2)
+    ymax <- log10(ymax)
+  }
+  Main_bar_plot <- (ggplot(data = Main_bar_data, aes_string(x = "x", y = "freq")) 
+                    + scale_y_continuous(trans = scale_intersections)
+                    + ylim(0, ymax)
+                    + geom_bar(stat = "identity", width = 0.6,
+                               fill = Main_bar_data$color)
+                    + scale_x_continuous(limits = c(0,(nrow(Main_bar_data)+1 )), expand = c(0,0),
+                                         breaks = NULL)
+                    + xlab(NULL) + ylab(ylabel) +labs(title = NULL)
+                    + theme(panel.background = element_rect(fill = "white"),
+                            plot.margin = unit(c(0.5,0.5,bottom_margin,0.5), "lines"), panel.border = element_blank(),
+                            axis.title.y = element_text(size = 8.3*y_axis_title_scale, angle=0, margin=margin(t=0,r=-130,b=0,l=0)), 
+                            axis.text.y = element_text(vjust=0.3, size=7*y_axis_tick_label_scale)))
+  
+  #axis.title.y = element_text(hjust = 0.4, vjust=-15, size = 8.3*y_axis_title_scale, angle=90)
+  
+  if((show_num == "yes") || (show_num == "Yes")){
+    Main_bar_plot <- (Main_bar_plot + geom_text(aes_string(label = "freq"), size = 2.2*intersection_size_number_scale, vjust = -1,
+                                                angle = number_angles, colour = Main_bar_data$color))
+  }
+  bInterDat <- NULL
+  pInterDat <- NULL
+  bCustomDat <- NULL
+  pCustomDat <- NULL
+  bElemDat <- NULL
+  pElemDat <- NULL
+  if(is.null(elem_data) == F){
+    bElemDat <- elem_data[which(elem_data$act == T), ]
+    bElemDat <- bElemDat[order(bElemDat$x), ]
+    pElemDat <- elem_data[which(elem_data$act == F), ]
+  }
+  if(is.null(inter_data) == F){
+    bInterDat <- inter_data[which(inter_data$act == T), ]
+    bInterDat <- bInterDat[order(bInterDat$x), ]
+    pInterDat <- inter_data[which(inter_data$act == F), ]
+  }
+  if(length(customQ) != 0){
+    pCustomDat <- customQ[which(customQ$act == F), ]
+    bCustomDat <- customQ[which(customQ$act == T), ]
+    bCustomDat <- bCustomDat[order(bCustomDat$x), ]
+  }
+  if(length(bInterDat) != 0){
+    Main_bar_plot <- Main_bar_plot + geom_bar(data = bInterDat,
+                                              aes_string(x="x", y = "freq"),
+                                              fill = bInterDat$color,
+                                              stat = "identity", position = "identity", width = 0.6)
+  }
+  if(length(bElemDat) != 0){
+    Main_bar_plot <- Main_bar_plot + geom_bar(data = bElemDat,
+                                              aes_string(x="x", y = "freq"),
+                                              fill = bElemDat$color,
+                                              stat = "identity", position = "identity", width = 0.6)
+  }
+  if(length(bCustomDat) != 0){
+    Main_bar_plot <- (Main_bar_plot + geom_bar(data = bCustomDat, aes_string(x="x", y = "freq2"),
+                                               fill = bCustomDat$color2,
+                                               stat = "identity", position ="identity", width = 0.6))
+  }
+  if(length(pCustomDat) != 0){
+    Main_bar_plot <- (Main_bar_plot + geom_point(data = pCustomDat, aes_string(x="x", y = "freq2"), colour = pCustomDat$color2,
+                                                 size = 2, shape = 17, position = position_jitter(width = 0.2, height = 0.2)))
+  }
+  if(length(pInterDat) != 0){
+    Main_bar_plot <- (Main_bar_plot + geom_point(data = pInterDat, aes_string(x="x", y = "freq"),
+                                                 position = position_jitter(width = 0.2, height = 0.2),
+                                                 colour = pInterDat$color, size = 2, shape = 17))
+  }
+  if(length(pElemDat) != 0){
+    Main_bar_plot <- (Main_bar_plot + geom_point(data = pElemDat, aes_string(x="x", y = "freq"),
+                                                 position = position_jitter(width = 0.2, height = 0.2),
+                                                 colour = pElemDat$color, size = 2, shape = 17))
+  }
+  
+  Main_bar_plot <- (Main_bar_plot 
+                    + geom_vline(xintercept = 0, color = "gray0")
+                    + geom_hline(yintercept = 0, color = "gray0"))
+  
+  Main_bar_plot <- ggplotGrob(Main_bar_plot)
+  return(Main_bar_plot)
+}
+
+NoAttBasePlot <- function(legend, size_plot_height, Main_bar_plot, Matrix_plot, 
+    hratios, Size_plot, query_legend, set_metadata, set_metadata_plots, 
+    newpage) {
+    top <- 1
+    bottom <- 100
+    if ((!is.null(legend)) && (query_legend != tolower("none"))) {
+        if (query_legend == tolower("top")) {
+            top <- 3
+            bottom <- 102
+            legend_top <- 1
+            legend_bottom <- 3
+            size_plot_height <- (size_plot_height + 2)
+        }
+        else if (query_legend == tolower("bottom")) {
+            legend_top <- 101
+            legend_bottom <- 103
+        }
+    }
+    if (is.null(set_metadata)) {
+        matrix_and_mainbar_right <- 100
+        matrix_and_mainbar_left <- 21
+        size_bar_right <- 20
+        size_bar_left <- 1
+    }
+    else if (!is.null(set_metadata)) {
+        matrix_and_mainbar_right <- set_metadata$ncols + 100
+        matrix_and_mainbar_left <- set_metadata$ncols + 21
+        size_bar_right <- set_metadata$ncols + 20
+        size_bar_left <- set_metadata$ncols + 1
+        metadata_right <- set_metadata$ncols
+        metadata_left <- 1
+    }
+    if (newpage) {
+        grid::grid.newpage()
+    }
+    if ((!is.null(legend)) && (query_legend != tolower("none"))) {
+        if (query_legend == tolower("top")) {
+            pushViewport(viewport(layout = grid.layout(102, matrix_and_mainbar_right)))
+        }
+        else if (query_legend == tolower("bottom")) {
+            pushViewport(viewport(layout = grid.layout(103, matrix_and_mainbar_right)))
+        }
+    }
+    else if ((is.null(legend)) || (query_legend == tolower("none"))) {
+        pushViewport(viewport(layout = grid.layout(100, matrix_and_mainbar_right)))
+    }
+    # Modified
+    vp = UpSetR:::vplayout(top:bottom, 1:(matrix_and_mainbar_right))
+    pushViewport(vp)
+    grid.draw(arrangeGrob(Main_bar_plot, Matrix_plot, heights = hratios))
+    popViewport()
+    # Modified
+    # vp = UpSetR:::vplayout(size_plot_height:bottom, (matrix_and_mainbar_right-matrix_and_mainbar_left-1):96)
+    # pushViewport(vp)
+    # grid.draw(arrangeGrob(Size_plot))
+    # popViewport()
+    # if (!is.null(set_metadata)) {
+    #     for (i in 1:length(set_metadata_plots)) {
+    #         if (i != 1) {
+    #             metadata_left <- 1 + metadata_right
+    #             metadata_right <- metadata_right + set_metadata$plots[[i]]$assign
+    #         }
+    #         else {
+    #             metadata_left <- 1
+    #             metadata_right <- set_metadata$plots[[i]]$assign
+    #         }
+    #         vp = UpSetR:::vplayout(size_plot_height:bottom, metadata_left:metadata_right)
+    #         pushViewport(vp)
+    #         grid.draw(arrangeGrob(set_metadata_plots[[i]]))
+    #         popViewport()
+    #     }
+    # }
+    # if ((!is.null(legend)) && (query_legend != tolower("none"))) {
+    #     vp = UpSetR:::vplayout(legend_top:legend_bottom, matrix_and_mainbar_left:matrix_and_mainbar_right)
+    #     pushViewport(vp)
+    #     grid.draw(arrangeGrob(legend))
+    #     popViewport()
+    # }
+}
+
+assignInNamespace(x="NoAttBasePlot", value=NoAttBasePlot, ns="UpSetR")
+assignInNamespace(x="Make_main_bar", value=Make_main_bar, ns="UpSetR")
+test()
+
+test <- function(x){
+  upset(fromList(gene.lists),sets=c('Endothelial (0)','Microglia (1)','Oligodendrocyte (2)','Pericytes (3)','Astrocytes (4)',
+                                  'Oligodendrocyte Progenitor (5)','Pericytes (7)','Neurons (8)','Microglia (9)'),
+             set_size.show = FALSE, mainbar.y.label = "\n\n\n\n\nNumber\nof Genes", 
+      order.by='freq',keep.order=T,nintersects=35, text.scale=c(3, 2, 1.8, 2, 1.85, 1.3))
+}
+```
 
 Figure 3: Bar chart, volcano, violin, and upset plot
 ```{r}
@@ -623,13 +851,15 @@ names(gene.lists) <- c('Endothelial (0)','Microglia (1)','Oligodendrocyte (2)','
                                   'Oligodendrocyte Progenitor (5)','Pericytes (7)','Neurons (8)','Microglia (9)')
 f3g <- upset(fromList(gene.lists),sets=c('Endothelial (0)','Microglia (1)','Oligodendrocyte (2)','Pericytes (3)','Astrocytes (4)',
                                   'Oligodendrocyte Progenitor (5)','Pericytes (7)','Neurons (8)','Microglia (9)'),
-             set_size.show = FALSE, mainbar.y.label = "Number of Genes", 
-      order.by='freq',keep.order=T,nintersects=35, text.scale=c(3, 2, 1.8, 2, 1.85, 1.3)) #c(intersection size title, intersection size tick labels, set size 
+             set_size.show = FALSE, mainbar.y.label = "\n\n\n\n\n\n\nNumber\nof Genes", 
+      order.by='freq',keep.order=T,nintersects=35, text.scale=c(2.3, 2, 1.8, 2, 1.4, 1.3)) 
+      #c(intersection size title, intersection size tick labels, set size title, set size tick labels, set names, numbers above bars)
 
-f3g <- upset(fromList(gene.lists),sets=c('cluster 0','cluster 1','cluster 2','cluster 3','cluster 4',
-                                  'cluster 5','cluster 7','cluster 8','cluster 9'),
-             set_size.show = FALSE, mainbar.y.label = "Number of Genes", 
-      order.by='freq',keep.order=T,nintersects=35, text.scale=c(3, 2, 1.8, 2, 1.65, 1.3)) #c(intersection size title, intersection size tick labels, set size title, set size tick labels, set names, numbers above bars)
+# f3g <- upset(fromList(gene.lists),sets=c('cluster 0','cluster 1','cluster 2','cluster 3','cluster 4',
+#                                   'cluster 5','cluster 7','cluster 8','cluster 9'),
+#              set_size.show = FALSE, mainbar.y.label = "Number of Genes", 
+#       order.by='freq',keep.order=T,nintersects=35, text.scale=c(3, 2, 1.8, 2, 1.65, 1.3)) 
+
 f3g #hackish way to get upset to play along
 grid.edit('arrange',name='arrange2')
 f3g_grob <- grid.grab()
@@ -825,7 +1055,14 @@ Figure 6
 ```{r fig6}
 
 setwd("C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp")
-load('cluster_specific_pathway.RData')
+LR.path <- "C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/LRpath"
+
+LR.clust <- list()
+clusts <- paste0("clust", c(0,1,2,3,4,5,7,8,9))
+
+for(file in clusts){
+  LR.clust[[file]] <- read.xlsx(file.path(LR.path,paste0(file, "_LR.xlsx")))
+}
 
 #upset plot set up
 top.paths <- lapply(LR.clust, FUN=function(x){
@@ -833,10 +1070,11 @@ top.paths <- lapply(LR.clust, FUN=function(x){
   x$Id
 })
 
+
 n.fdr <- sapply(top.paths, length)
 barplot(n.fdr, main='Number of FDR significant pathways', las=2)
 top.paths <- top.paths[which(names(top.paths)!="clust4")]
-names(top.paths) <- c('cluster 0','cluster 1','cluster 2','cluster 3','cluster 5','cluster 7','cluster 8','cluster 9')
+names(top.paths) <- c('Endothelial (0)','Microglia (1)','Oligodendrocytes (2)','Pericytes (3)','Oligodendrocyte Progenitor (5)','Pericytes (7)','Neurons (8)','Microglia (9)')
 
 #barplots set up
 load('cluster.specific.rda')
@@ -883,17 +1121,17 @@ DNArep.fc$col <- ifelse(DNArep.fc$PValue<0.05,'blue','red')
 text.size=14
 
 #upset plot of FDR significant pathways
-f4a <- upset(fromList(top.paths), sets=names(top.paths),
-             mainbar.y.label='Number of\nGene Set Pathways',
-      order.by='freq',keep.order=T,nintersects = NA, text.scale=c(2, 1.6, 1.5, 1.7, 1.2, 1.2)) #c(intersection size title, intersection size tick labels, set size title, set size tick labels, set names, numbers above bars)
-f4a
+f6a <- upset(fromList(top.paths), sets=names(top.paths),
+             mainbar.y.label='\n\n\n\n\n\nNumber of\nGene Set\nPathways',
+      order.by='freq',keep.order=T,nintersects = NA, text.scale=c(2, 1.6, 1.5, 1.7, 1.4, 1.2)) #c(intersection size title, intersection size tick labels, set size title, set size tick labels, set names, numbers above bars)
+f6a
 grid.edit('arrange',name='arrange2')
-f4a_grob <- grid.grab()
+f6a_grob <- grid.grab()
 
 
 #plot genes in pathway of interest
 
-f4b <- ggplot(prot.fold.fc, aes(x=gene, y=logFC, fill=col)) +
+f6b <- ggplot(prot.fold.fc, aes(x=gene, y=logFC, fill=col)) +
   geom_bar(stat="identity", width=1) +
   theme_bw() +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.border = element_blank(),
@@ -902,7 +1140,7 @@ f4b <- ggplot(prot.fold.fc, aes(x=gene, y=logFC, fill=col)) +
   xlab("") + ylab("LogFC with Lead") + ggtitle("Cluster 1 (Microglia)\nProtein Folding Pathway") +
   scale_fill_manual(values=c("blue","red"))
 
-f4c <- ggplot(int12.fc, aes(x=gene, y=logFC, fill=col)) +
+f6c <- ggplot(int12.fc, aes(x=gene, y=logFC, fill=col)) +
   geom_bar(stat="identity", width=1) +
   theme_bw() +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.border = element_blank(),
@@ -911,7 +1149,7 @@ f4c <- ggplot(int12.fc, aes(x=gene, y=logFC, fill=col)) +
   xlab("") + ylab("LogFC with Lead") + ggtitle("Cluster 2 (Oligodendrocytes)\nInterleukin-12 Biosynthetic Process") +
   scale_fill_manual(values=c("blue","red"))
 
-f4d <- ggplot(DNArep.fc, aes(x=gene, y=logFC, fill=col)) +
+f6d <- ggplot(DNArep.fc, aes(x=gene, y=logFC, fill=col)) +
   geom_bar(stat="identity", width=1) +
   theme_bw() +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.border = element_blank(),
@@ -920,10 +1158,10 @@ f4d <- ggplot(DNArep.fc, aes(x=gene, y=logFC, fill=col)) +
   xlab("") + ylab("LogFC with Lead") + ggtitle("Cluster 7 (Pericytes)\nDouble-Strand Break Repair") +
   scale_fill_manual(values=c("blue","red"))
 
-fig4_plots <- list(f4a_grob, f4b, f4c, f4d)
-fig4_label <- list("A.", "B.", "C.", "D.")
-fig4_plots <- lapply(1:length(fig4_plots), FUN = function(i){
-  arrangeGrob(fig4_plots[[i]], top = textGrob(fig4_label[[i]], x= unit(0, "npc")
+fig6_plots <- list(f6a_grob, f6b, f6c, f6d)
+fig6_label <- list("A.", "B.", "C.", "D.")
+fig6_plots <- lapply(1:length(fig6_plots), FUN = function(i){
+  arrangeGrob(fig6_plots[[i]], top = textGrob(fig6_label[[i]], x= unit(0, "npc")
                                 ,y= unit(1, "npc"), just= c("left","top"),
                                 gp=gpar(col="black", fontsize=18)))
 })
@@ -936,7 +1174,7 @@ legend <- get_legend(dummy)
 
 
 tiff("Figure_6_Path.tif", height=8, width=12, units="in", res=300)
-grid.arrange(fig4_plots[[1]], fig4_plots[[2]], fig4_plots[[3]], fig4_plots[[4]], legend,
+grid.arrange(fig6_plots[[1]], fig6_plots[[2]], fig6_plots[[3]], fig6_plots[[4]], legend,
              heights = c(2,1.1), widths=c(1,1,1,0.3),
              layout_matrix=rbind(c(1,1,1,1),
                                  c(2,3,4,5)))
@@ -945,7 +1183,7 @@ dev.off()
 
 
 pdf("Figure_6_Path.pdf", height=8, width=12)
-grid.arrange(fig4_plots[[1]], fig4_plots[[2]], fig4_plots[[3]], fig4_plots[[4]], legend,
+grid.arrange(fig6_plots[[1]], fig6_plots[[2]], fig6_plots[[3]], fig6_plots[[4]], legend,
              heights = c(2,1.1), widths=c(1,1,1,0.3),
              layout_matrix=rbind(c(1,1,1,1),
                                  c(2,3,4,5)))
