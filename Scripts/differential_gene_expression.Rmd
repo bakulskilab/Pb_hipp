@@ -1352,22 +1352,27 @@ dev.off()
 
 p.opc <- ggplot(data=test, aes(x=time, y=OPC, group=treat)) +
   geom_line(aes(col=treat), size=1.3) +
-  theme_bw() + xlab('Days') + ylim(c(0,1)) +
-  ylab('Oligodendrocyte\nPrecursor') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+  theme_bw() + xlab('Days') + ylab('Cell Type Proportion') +
+  ggtitle('Oligodendrocyte Precursor') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12), plot.title=element_text(size=14)) +
+  scale_color_manual(values=c("#FB6B6B", "#E53EFF", "#68B2FF")) 
 
 p.nipc <- ggplot(data=test, aes(x=time, y=nIPC, group=treat)) +
   geom_line(aes(col=treat), size=1.3) +
-  theme_bw() + xlab('Days') + ylim(c(0,1)) +
-  ylab('Neuronal\nIntermediate Progenitor') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+  theme_bw() + xlab('Days') + ylab('Cell Type Proportion') +
+  ggtitle('Neuronal Intermediate Progenitor') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12), plot.title=element_text(size=14)) +
+  scale_color_manual(values=c("#FB6B6B", "#E53EFF", "#68B2FF")) 
 
 p.neub <- ggplot(data=test, aes(x=time, y=Neuroblast_1, group=treat)) +
   geom_line(aes(col=treat), size=1.3) +
-  theme_bw() + xlab('Days') + ylim(c(0,1)) +
-  ylab('Neuroblast') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+  theme_bw() + xlab('Days') + ylab('Cell Type Proportion') +
+  ggtitle('Neuroblast') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12), plot.title=element_text(size=14)) +
+  scale_color_manual(values=c("#FB6B6B", "#E53EFF", "#68B2FF")) 
 
 p.dummy <- ggplot(data=test, aes(x=time, y=Neuroblast_1, group=treat)) +
-  geom_line(aes(col=treat)) + labs(color='Treatment') + scale_color_discrete(labels=c('Control', 'Lead 5 μM', 'Lead 30 μM')) +
-  theme(legend.text=element_text(size=18), legend.title=element_text(size=18))
+  geom_line(aes(col=treat)) + labs(color='Treatment') + 
+  theme(legend.text=element_text(size=18), legend.title=element_text(size=18), legend.key=element_blank()) + 
+  guides(color = guide_legend(override.aes = list(size = 5))) +
+  scale_color_manual(labels=c('Control', 'Lead 5 μM', 'Lead 30 μM'), values=c("#FB6B6B", "#E53EFF", "#68B2FF")) 
 p.predleg <- get_legend(p.dummy)
 
 # pb hipp as reference
@@ -1418,13 +1423,15 @@ ggplot(data=gene.time, aes(x=time, y=KIF5A, group=treat)) +
 
 p.olig1 <- ggplot(data=gene.time, aes(x=time, y=OLIG1, group=treat)) +
   geom_line(aes(col=treat), size=1.3) +
-  theme_bw() + xlab('Days') +
-  ylab('OLIG1') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+  theme_bw() + xlab('Days') + ylab('TPM') +
+  ggtitle('OLIG1') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12), plot.title=element_text(size=14)) +
+  scale_color_manual(values=c("#FB6B6B", "#E53EFF", "#68B2FF")) 
 
 p.olig2 <- ggplot(data=gene.time, aes(x=time, y=OLIG2, group=treat)) +
   geom_line(aes(col=treat), size=1.3) +
-  theme_bw() + xlab('Days') +
-  ylab('OLIG2') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+  theme_bw() + xlab('Days') + ylab('TPM') +
+  ggtitle('OLIG2') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12), plot.title=element_text(size=14)) +
+  scale_color_manual(values=c("#FB6B6B", "#E53EFF", "#68B2FF")) 
 
 # p.olig3 <- ggplot(data=gene.time, aes(x=time, y=OLIG3, group=treat)) +
 #   geom_line(aes(col=treat), size=1.3) +
@@ -1433,13 +1440,15 @@ p.olig2 <- ggplot(data=gene.time, aes(x=time, y=OLIG2, group=treat)) +
 
 p.pdgfra <- ggplot(data=gene.time, aes(x=time, y=PDGFRA, group=treat)) +
   geom_line(aes(col=treat), size=1.3) +
-  theme_bw() + xlab('Days') +
-  ylab('PDGFRA') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+  theme_bw() + xlab('Days') + ylab('TPM') +
+  ggtitle('PDGFRA') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12), plot.title=element_text(size=14)) +
+  scale_color_manual(values=c("#FB6B6B", "#E53EFF", "#68B2FF")) 
 
 p.mbp <- ggplot(data=gene.time, aes(x=time, y=MBP, group=treat)) +
   geom_line(aes(col=treat), size=1.3) +
-  theme_bw() + xlab('Days') +
-  ylab('MBP') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12))
+  theme_bw() + xlab('Days') + ylab('TPM') +
+  ggtitle('MBP') + theme(legend.position = 'none', axis.title=element_text(size=14), axis.text=element_text(size=12), plot.title=element_text(size=14)) +
+  scale_color_manual(values=c("#FB6B6B", "#E53EFF", "#68B2FF")) 
 
 
 fig_pred_plots <- list(p.opc, p.nipc, p.neub, p.olig1, p.olig2, p.pdgfra, p.mbp)
@@ -1454,7 +1463,7 @@ fig_pred_plots <- lapply(1:length(fig_pred_plots), FUN = function(i){
 
 ### Figure 4
 
-tiff("C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/Figure_4_MuSiC.tif", height=8, width=12, units="in", res=300)
+tiff("F:/Drive/Misc/RNAseq/Pb_Hipp/Figure_6_MuSiC.tif", height=8, width=12, units="in", res=300)
 grid.arrange(fig_pred_plots[[1]], fig_pred_plots[[2]], fig_pred_plots[[3]],
              p.predleg, fig_pred_plots[[4]], fig_pred_plots[[5]], 
                         fig_pred_plots[[6]], fig_pred_plots[[7]],
@@ -1465,7 +1474,7 @@ grid.arrange(fig_pred_plots[[1]], fig_pred_plots[[2]], fig_pred_plots[[3]],
                                  c(4,7,7,8,8)))
 dev.off()
 
-pdf("C:/Users/John/Google Drive/Misc/RNAseq/Pb_Hipp/Figure_4_MuSiC.pdf", height=8, width=12)
+pdf("F:/Drive/Misc/RNAseq/Pb_Hipp/Figure_6_MuSiC.pdf", height=8, width=12)
 grid.arrange(fig_pred_plots[[1]], fig_pred_plots[[2]], fig_pred_plots[[3]],
              p.predleg, fig_pred_plots[[4]], fig_pred_plots[[5]], 
                         fig_pred_plots[[6]], fig_pred_plots[[7]],
