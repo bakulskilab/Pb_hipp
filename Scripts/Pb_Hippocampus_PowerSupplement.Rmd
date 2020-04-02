@@ -1,0 +1,100 @@
+---
+title: "Pb_Hippocampus_Supplement5"
+author: "Christopher T. Lee"
+date: "4/1/2020"
+output: html_document
+---
+
+
+```{r include=FALSE}
+setwd("~")
+library(edgeR)
+```
+
+Load in the new data:
+```{r}
+load("./Pb Hipp 1000 gene cutoff 2-17-19.Robj")
+```
+
+Renaming data for easier handling, separating the counts matrix and the cell attribute matrix.
+```{r}
+counts_mat = All@raw.data #17143 genes x 5257 cells
+rownames(counts_mat) = All@raw.data@Dimnames[[1]]
+colnames(counts_mat) = All@raw.data@Dimnames[[2]]
+cells_mat = All@meta.data #nGene nUMI orig.ident percent.mito Sex Treat res.0.4
+counts_mat = counts_mat[,rownames(cells_mat)] #22480 cells remaining
+```
+
+
+
+Doing power simulations
+
+
+Dispersion estimates summary from clu0:
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.1366  0.2450  0.6927  1.2135  2.5534  2.6620 
+```{r}
+
+ngenes = 1000
+ncells = ncol(counts_mat)
+M = apply(counts_mat, 2, sum)
+disp = 0.69
+apply(counts_mat, 2, function(x){sum(x>0)}) -> det
+
+#counts_1 = rnbinom(ncells, mu = M*pFC/mean(det), size = 0.69)
+FC = c(1,1.2,1.4,1.6,1.8,2)
+
+#counts_sim = lapply(1:ngenes, function(x) { rnbinom(ncells, mu = mean(M)/mean(det), size = 0.69)})
+counts_sim = list()
+
+for (fold in FC) {
+	pFC = (cells_mat$Treat == "Pb")*(fold-1)+1
+
+	counts_sim_s = lapply(1:ngenes, function(x) { rnbinom(ncells, mu = mean(M)*pFC/mean(det), size = 0.69)})
+	counts_sim = c(counts_sim, counts_sim_s) 
+}
+
+counts_sim = do.call(rbind, counts_sim)
+colnames(counts_sim) = colnames(counts_mat)
+
+
+power_fit <- function(clusterID) {
+		counts_clu0 = counts_sim[,colnames(counts_mat) %in% rownames(cells_mat)[cells_mat$res.0.4 %in%           clusterID]]
+	cells_clu0 = cells_mat[colnames(counts_clu0),]
+	#Ctrls: 109d 113c 118d 119g
+	#Pbs  : 103c 107d 112c 116d
+	cells_clu0$Tx = 0.5*((cells_clu0$Treat == "Pb") - (cells_clu0$Treat == "Ctrl"))
+	cells_clu0$Txt109 = - (cells_clu0$orig.ident == "t109c") + (cells_clu0$orig.ident == "t119g")
+	cells_clu0$Txt113 = - (cells_clu0$orig.ident == "t113c") + (cells_clu0$orig.ident == "t119g")
+	cells_clu0$Txt118 = - (cells_clu0$orig.ident == "t118d") + (cells_clu0$orig.ident == "t119g")
+	cells_clu0$Txt103 =  (cells_clu0$orig.ident == "t103c") - (cells_clu0$orig.ident == "t116d")
+	cells_clu0$Txt107 =  (cells_clu0$orig.ident == "t107d") - (cells_clu0$orig.ident == "t116d")
+	cells_clu0$Txt112 =  (cells_clu0$orig.ident == "t112c") - (cells_clu0$orig.ident == "t116d")
+	#cells_clu0$det = -log(nrow(counts_clu0)/colSums(counts_clu0 > 0)-1) #Using logit transformation
+
+	design = model.matrix(~ Tx+Txt109+Txt113+Txt118+Txt103+Txt107+Txt112, data = cells_clu0)
+	y = DGEList(counts_clu0, group = factor(cells_clu0$Treat))
+	y = calcNormFactors(y)
+	print("Calcuating Dispersion")
+	y = estimateDisp(y, design)
+	print("Fitting model")
+	fit = glmQLFit(y, design)
+	print("Calculating QLFTest")
+	qlf = glmQLFTest(fit, contrast=c(0,1,0,0,0,0,0,0))
+	return(qlf)
+}
+
+power_table = matrix(0, 14, length(FC))
+qlf = power_fit(0:13)
+power_table[1, ] = sapply(1:(length(FC)), function(i){ sum(qlf$table$PValue[((i-1)*1000+1):(i*1000)] <0.05) })
+
+for (clusterID in c(1:5,7:9,11)) {
+	#print(summary(qlf$table[((i-1)*1000):(i*1000+1),]))
+	print(clusterID)
+	qlf = power_fit(clusterID)
+	power_table[clusterID+1,] = sapply(1:(length(FC)), function(i){ sum(qlf$table$PValue[((i-1)*1000+1):(i*1000)] <0.05) })
+}
+
+```
+
+Note: the ommitted clusters have 0 cells in at least one cluster.
